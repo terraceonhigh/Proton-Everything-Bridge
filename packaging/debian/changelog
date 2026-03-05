@@ -1,0 +1,7 @@
+proton-goa (0.1.0-1) unstable; urgency=medium
+
+  * Initial release.
+  * GNOME Online Accounts plugin for Proton Mail, Drive, and Calendar.
+  * Includes systemd user service units for bridge processes.
+
+ -- Proton-on-GOA Maintainers <maintainers@example.com>  Thu, 05 Mar 2026 12:00:00 +0000

@@ -1,0 +1,13 @@
+[Unit]
+Description=Proton Mail Bridge
+Documentation=https://proton.me/mail/bridge
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/protonmail-bridge --noninteractive
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

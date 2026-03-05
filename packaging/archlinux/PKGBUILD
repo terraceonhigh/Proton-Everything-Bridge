@@ -1,0 +1,37 @@
+pkgname=proton-goa
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Proton services integration for GNOME Online Accounts'
+arch=('x86_64')
+url='https://github.com/terraceonhigh/Proton-on-Gnome-Online-Accounts'
+license=('GPL-2.0-only')
+depends=(
+  'gnome-online-accounts'
+  'gvfs'
+  'glib2'
+  'libsecret'
+  'libsoup3'
+  'json-glib'
+)
+makedepends=(
+  'meson'
+  'ninja'
+  'pkg-config'
+)
+optdepends=(
+  'rclone: Proton Drive FUSE mount support'
+  'protonmail-bridge: Proton Mail IMAP/SMTP bridge'
+)
+source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/v${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "Proton-on-Gnome-Online-Accounts-${pkgver}"
+  meson setup build --prefix=/usr
+  meson compile -C build
+}
+
+package() {
+  cd "Proton-on-Gnome-Online-Accounts-${pkgver}"
+  meson install -C build --destdir="${pkgdir}"
+}

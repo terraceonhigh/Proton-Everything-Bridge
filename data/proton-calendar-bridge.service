@@ -1,0 +1,12 @@
+[Unit]
+Description=Proton Calendar Bridge (CalDAV on localhost:9842)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/proton-calendar-bridge
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
