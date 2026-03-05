@@ -1,0 +1,15 @@
+[Unit]
+Description=Proton Drive rclone FUSE mount for %i
+After=graphical-session.target
+Requires=default.target
+
+[Service]
+Type=simple
+ExecStartPre=/bin/mkdir -p %h/ProtonDrive
+ExecStart=/usr/bin/rclone mount proton: %h/ProtonDrive --vfs-cache-mode full
+ExecStop=/bin/fusermount -u %h/ProtonDrive
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

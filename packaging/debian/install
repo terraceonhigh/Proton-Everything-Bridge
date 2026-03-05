@@ -1,0 +1,4 @@
+usr/lib/*/gnome-online-accounts/goa-proton.so
+usr/lib/systemd/user/protonmail-bridge.service
+usr/lib/systemd/user/proton-calendar-bridge.service
+usr/lib/systemd/user/proton-drive-bridge@.service

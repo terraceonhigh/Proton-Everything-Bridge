@@ -1,0 +1,34 @@
+Source: proton-goa
+Section: gnome
+Priority: optional
+Maintainer: Proton-on-GOA Maintainers <maintainers@example.com>
+Build-Depends: debhelper-compat (= 13),
+               meson (>= 0.62),
+               pkg-config,
+               libgoa-backend-1.0-dev,
+               libglib2.0-dev,
+               libsecret-1-dev,
+               libsoup-3.0-dev,
+               libjson-glib-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/terraceonhigh/Proton-on-Gnome-Online-Accounts
+Rules-Requires-Root: no
+
+Package: proton-goa
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         gnome-online-accounts,
+         gvfs
+Recommends: rclone
+Suggests: protonmail-bridge
+Description: Proton services integration for GNOME Online Accounts
+ Integrates Proton Mail, Proton Drive, and Proton Calendar into
+ GNOME Online Accounts, providing the same seamless experience as
+ Google or Microsoft 365 accounts in GNOME.
+ .
+ After installation, add your Proton account in GNOME Settings,
+ Online Accounts. This will automatically configure:
+  - Mail (Geary/Evolution) via Proton Mail Bridge
+  - Files/Drive (Nautilus sidebar) via rclone FUSE mount
+  - Calendar (GNOME Calendar) via CalDAV bridge
