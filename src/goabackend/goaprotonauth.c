@@ -1,0 +1,1 @@
+/* Proton authentication helpers — placeholder */
