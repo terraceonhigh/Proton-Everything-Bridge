@@ -1,0 +1,9 @@
+[submodule "proton-mail-bridge"]
+	path = proton-mail-bridge
+	url = https://github.com/terraceonhigh/proton-mail-bridge
+[submodule "proton-drive-bridge"]
+	path = proton-drive-bridge
+	url = https://github.com/terraceonhigh/proton-drive-bridge
+[submodule "proton-calendar-bridge"]
+	path = proton-calendar-bridge
+	url = https://github.com/terraceonhigh/proton-calendar-bridge
