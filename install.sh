@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — Proton on GNOME Online Accounts — one-shot installer
+# install.sh — Proton on GNOME Online Accounts — one-command installer
 #
 # Supported distributions:
 #   • Fedora 38+
@@ -7,8 +7,13 @@
 #   • openSUSE Tumbleweed / Leap 15.5+
 #
 # Usage:
-#   bash install.sh           — full install
-#   bash install.sh --status  — check what is/isn't installed
+#   bash install.sh              — full install (everything automatic)
+#   bash install.sh --status     — check what is/isn't installed
+#   bash install.sh --no-bridge  — install without downloading Proton Mail Bridge
+#   bash install.sh --uninstall  — remove everything this script installed
+#
+# Can also be run via:
+#   curl -fsSL https://raw.githubusercontent.com/terraceonhigh/Proton-on-Gnome-Online-Accounts/main/install.sh | bash
 
 set -euo pipefail
 
@@ -26,11 +31,30 @@ warn() { printf "  ${YELLOW}!${NC}  %s\n"     "$*"; }
 step() { printf "\n${BOLD}━━  %s${NC}\n"      "$*"; }
 die()  { printf "\n  ${RED}✗  ERROR:${NC} %s\n\n" "$*" >&2; exit 1; }
 
-# ── Parse arguments ───────────────────────────────────────────────────────────
+# ── Parse arguments ──────────────────────────────────────────────────────────
 STATUS_ONLY=0
-[[ "${1:-}" == "--status" ]] && STATUS_ONLY=1
+SKIP_BRIDGE=0
+UNINSTALL=0
 
-# ── Detect distro ─────────────────────────────────────────────────────────────
+for arg in "$@"; do
+  case "$arg" in
+    --status)    STATUS_ONLY=1 ;;
+    --no-bridge) SKIP_BRIDGE=1 ;;
+    --uninstall) UNINSTALL=1 ;;
+    --help|-h)
+      printf "Usage: bash install.sh [OPTIONS]\n\n"
+      printf "Options:\n"
+      printf "  --status      Check what is/isn't installed\n"
+      printf "  --no-bridge   Skip Proton Mail Bridge download\n"
+      printf "  --uninstall   Remove everything this script installed\n"
+      printf "  --help        Show this help\n"
+      exit 0
+      ;;
+    *) die "Unknown option: $arg (try --help)" ;;
+  esac
+done
+
+# ── Detect distro ────────────────────────────────────────────────────────────
 [ -f /etc/os-release ] || die "Cannot detect your Linux distribution."
 # shellcheck source=/dev/null
 source /etc/os-release
@@ -50,11 +74,17 @@ else die "Your distribution ($DISTRO_ID) is not supported yet.
          Supported: Fedora, Ubuntu/Debian, openSUSE."
 fi
 
-# ── Repo root (works whether run via 'bash install.sh' or './install.sh') ─────
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ── Helper: find GOA plugin path ─────────────────────────────────────────────
+find_goa_plugin() {
+  for p in /usr/lib64/gnome-online-accounts/goa-proton.so \
+           /usr/lib/gnome-online-accounts/goa-proton.so; do
+    if [ -e "$p" ]; then echo "$p"; return 0; fi
+  done
+  return 1
+}
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STATUS MODE — just check what's present and exit
+# STATUS MODE
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ $STATUS_ONLY -eq 1 ]]; then
   printf "\n${BOLD}Proton on GNOME Online Accounts — status check${NC}\n\n"
@@ -82,35 +112,97 @@ if [[ $STATUS_ONLY -eq 1 ]]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
+# UNINSTALL MODE
+# ─────────────────────────────────────────────────────────────────────────────
+if [[ $UNINSTALL -eq 1 ]]; then
+  printf "\n${BOLD}Proton on GNOME Online Accounts — uninstall${NC}\n\n"
+
+  # Stop and disable services
+  for svc in protonmail-bridge.service proton-calendar-bridge.service; do
+    if systemctl --user is-active "$svc" &>/dev/null; then
+      systemctl --user stop "$svc" 2>/dev/null && ok "Stopped $svc"
+    fi
+    if systemctl --user is-enabled "$svc" &>/dev/null; then
+      systemctl --user disable "$svc" 2>/dev/null && ok "Disabled $svc"
+    fi
+  done
+
+  # Remove GOA plugin
+  for p in /usr/lib64/gnome-online-accounts/goa-proton.so \
+           /usr/lib/gnome-online-accounts/goa-proton.so; do
+    if [ -e "$p" ]; then
+      sudo rm -f "$p" && ok "Removed $p"
+    fi
+  done
+
+  # Remove calendar bridge
+  if [ -e /usr/local/bin/proton-calendar-bridge ]; then
+    sudo rm -f /usr/local/bin/proton-calendar-bridge && ok "Removed proton-calendar-bridge"
+  fi
+
+  systemctl --user daemon-reload 2>/dev/null || true
+  printf "\n  ${GREEN}Done.${NC} Proton Mail Bridge (if installed via your package manager)\n"
+  printf "  can be removed with your distro's package manager.\n\n"
+  exit 0
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 # FULL INSTALL
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Determine how we got here — inside a git clone, or piped from curl?
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" 2>/dev/null)" 2>/dev/null && pwd 2>/dev/null || echo "")"
+CLONED_TEMP=""
+
+if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/.git" ] && [ -f "$SCRIPT_DIR/meson.build" ]; then
+  REPO_DIR="$SCRIPT_DIR"
+else
+  # Running via curl-pipe-bash or from outside the repo — clone into a temp dir
+  CLONED_TEMP="$(mktemp -d)"
+  REPO_DIR="$CLONED_TEMP/Proton-on-Gnome-Online-Accounts"
+fi
+
+# Cleanup temp dir on exit if we created one
+cleanup() {
+  if [ -n "$CLONED_TEMP" ] && [ -d "$CLONED_TEMP" ]; then
+    rm -rf "$CLONED_TEMP"
+  fi
+}
+trap cleanup EXIT
+
+TOTAL_STEPS=4
+if [[ $SKIP_BRIDGE -eq 1 ]]; then
+  BRIDGE_STEP="skip"
+else
+  BRIDGE_STEP="auto"
+fi
+
 clear
 printf "
 ${BOLD}╔══════════════════════════════════════════════════════════════╗
 ║       Proton  ▶  GNOME Online Accounts  —  Installer         ║
 ╚══════════════════════════════════════════════════════════════╝${NC}
 
-  This script will:
-    1.  Install all required software (needs internet + your password)
+  This script will automatically:
+    1.  Install all required software
     2.  Build and install the Proton GOA plugin
-    3.  Register background services with systemd
-    4.  Guide you through the remaining manual steps
+    3.  Download and install Proton Mail Bridge
+    4.  Register background services
 
   Distribution detected: ${BOLD}${DISTRO_LABEL}${NC}
 
-  Your computer password (sudo) will be asked once — that is normal,
+  Your computer password (sudo) will be asked — that is normal,
   the same as when you install any app.
 
 "
-read -rp "  Press Enter to start, or Ctrl+C to cancel: "
 
 # ── Step 1: Install build dependencies ───────────────────────────────────────
-step "Step 1 / 5 — Installing build tools and libraries"
+step "Step 1 / $TOTAL_STEPS — Installing build tools and libraries"
 info "Talking to your distro's package manager — please wait..."
 
 if is_fedora; then
   sudo dnf install -y \
-    meson ninja-build gcc pkg-config git \
+    meson ninja-build gcc pkg-config git curl \
     gnome-online-accounts-devel \
     glib2-devel libsecret-devel \
     libsoup3-devel json-glib-devel \
@@ -118,13 +210,12 @@ if is_fedora; then
     fuse3
 
 elif is_ubuntu; then
-  # Make sure universe is enabled (needed for rclone on some Ubuntu releases)
   if command -v add-apt-repository &>/dev/null; then
     sudo add-apt-repository -y universe 2>/dev/null || true
   fi
   sudo apt-get update -qq
   sudo apt-get install -y \
-    meson ninja-build gcc pkg-config git \
+    meson ninja-build gcc pkg-config git curl \
     libgoa-backend-1.0-dev \
     libglib2.0-dev libsecret-1-dev \
     libsoup-3.0-dev libjson-glib-dev \
@@ -133,7 +224,7 @@ elif is_ubuntu; then
 
 elif is_opensuse; then
   sudo zypper --non-interactive install \
-    meson ninja gcc pkg-config git \
+    meson ninja gcc pkg-config git curl \
     gnome-online-accounts-devel \
     glib2-devel libsecret-devel \
     libsoup3-devel libjson-glib-devel \
@@ -143,24 +234,30 @@ fi
 
 ok "Build tools and libraries installed"
 
-# ── Step 2: Build + install the GOA plugin ────────────────────────────────────
-step "Step 2 / 5 — Building the Proton GOA plugin"
+# ── Step 2: Build + install the GOA plugin ───────────────────────────────────
+step "Step 2 / $TOTAL_STEPS — Building the Proton GOA plugin"
 
-# Initialise git submodules (contains bridge source code)
-if [ -d "$REPO_DIR/.git" ] && [ -f "$REPO_DIR/.gitmodules" ]; then
-  info "Fetching bridge source code (submodules)..."
-  git -C "$REPO_DIR" submodule update --init --recursive 2>&1 \
-    | grep -v '^$' | sed 's/^/    /' || warn "Submodule fetch had warnings — continuing"
-  ok "Bridge source code ready"
+# If we need to clone the repo (curl-pipe-bash mode), do it now
+if [ -n "$CLONED_TEMP" ]; then
+  info "Downloading source code..."
+  git clone --recurse-submodules --depth 1 \
+    https://github.com/terraceonhigh/Proton-on-Gnome-Online-Accounts.git \
+    "$REPO_DIR" 2>&1 | sed 's/^/    /'
+  ok "Source code downloaded"
 else
-  warn "This is not a full git clone — bridge submodules will not be available."
-  warn "Tip: clone with:  git clone --recurse-submodules <repo-url>"
+  # Initialise git submodules if inside a git clone
+  if [ -d "$REPO_DIR/.git" ] && [ -f "$REPO_DIR/.gitmodules" ]; then
+    info "Fetching bridge source code (submodules)..."
+    git -C "$REPO_DIR" submodule update --init --recursive 2>&1 \
+      | grep -v '^$' | sed 's/^/    /' || warn "Submodule fetch had warnings — continuing"
+    ok "Bridge source code ready"
+  fi
 fi
 
 info "Compiling the plugin..."
 BUILD_DIR="$REPO_DIR/_build"
 rm -rf "$BUILD_DIR"
-meson setup "$BUILD_DIR" --prefix=/usr --buildtype=release
+meson setup "$BUILD_DIR" "$REPO_DIR" --prefix=/usr --buildtype=release
 ninja -C "$BUILD_DIR"
 ok "Plugin compiled"
 
@@ -168,113 +265,124 @@ info "Installing the plugin (needs sudo)..."
 sudo ninja -C "$BUILD_DIR" install
 ok "Plugin installed"
 
-# ── Step 3: Build proton-calendar-bridge ──────────────────────────────────────
-step "Step 3 / 5 — Building Proton Calendar Bridge"
+# Build proton-calendar-bridge if submodule is available
 CAL_SRC="$REPO_DIR/proton-calendar-bridge"
-
 if [ -d "$CAL_SRC" ] && [ -n "$(ls -A "$CAL_SRC" 2>/dev/null)" ]; then
   if command -v go &>/dev/null; then
     info "Building proton-calendar-bridge..."
-    GOBIN_OUT="$CAL_SRC/proton-calendar-bridge"
     ( cd "$CAL_SRC" && go build -o proton-calendar-bridge ./cmd/proton-calendar-bridge/... 2>&1 \
-        | sed 's/^/    /' ) || die "Build of proton-calendar-bridge failed.
-    Check the output above for details."
-    sudo cp "$GOBIN_OUT" /usr/local/bin/proton-calendar-bridge
-    sudo chmod 755 /usr/local/bin/proton-calendar-bridge
-    ok "proton-calendar-bridge installed to /usr/local/bin/"
+        | sed 's/^/    /' ) || warn "proton-calendar-bridge build failed — calendar sync will not work until you build it manually."
+    if [ -f "$CAL_SRC/proton-calendar-bridge" ]; then
+      sudo cp "$CAL_SRC/proton-calendar-bridge" /usr/local/bin/proton-calendar-bridge
+      sudo chmod 755 /usr/local/bin/proton-calendar-bridge
+      ok "proton-calendar-bridge installed to /usr/local/bin/"
+    fi
   else
     warn "Go compiler not found — skipping proton-calendar-bridge."
-    warn "Calendar sync will not work until you build it manually."
   fi
-else
-  warn "proton-calendar-bridge submodule is empty — skipping."
-  warn "If you cloned without --recurse-submodules, run:"
-  warn "  git submodule update --init --recursive"
 fi
 
-# ── Step 4: Register systemd user services ────────────────────────────────────
-step "Step 4 / 5 — Registering background services"
+# ── Step 3: Install Proton Mail Bridge ───────────────────────────────────────
+step "Step 3 / $TOTAL_STEPS — Installing Proton Mail Bridge"
+
+if [[ "$BRIDGE_STEP" == "skip" ]]; then
+  info "Skipping (--no-bridge flag was used)"
+elif command -v protonmail-bridge &>/dev/null; then
+  ok "Proton Mail Bridge is already installed"
+else
+  info "Downloading Proton Mail Bridge..."
+
+  BRIDGE_DL_DIR="$(mktemp -d)"
+  BRIDGE_OK=0
+
+  # Proton publishes stable bridge packages at these URLs.
+  # The /download/bridge/linux endpoint redirects to the latest version.
+  if is_fedora || is_opensuse; then
+    BRIDGE_PKG="$BRIDGE_DL_DIR/protonmail-bridge.rpm"
+    if curl -fSL -o "$BRIDGE_PKG" \
+        "https://proton.me/download/bridge/protonmail-bridge_linux_x86.rpm" 2>/dev/null; then
+      info "Installing Bridge RPM..."
+      if is_fedora; then
+        sudo dnf install -y "$BRIDGE_PKG" && BRIDGE_OK=1
+      else
+        sudo zypper --non-interactive install --allow-unsigned-rpm "$BRIDGE_PKG" && BRIDGE_OK=1
+      fi
+    fi
+  elif is_ubuntu; then
+    BRIDGE_PKG="$BRIDGE_DL_DIR/protonmail-bridge.deb"
+    if curl -fSL -o "$BRIDGE_PKG" \
+        "https://proton.me/download/bridge/protonmail-bridge_linux_x86.deb" 2>/dev/null; then
+      info "Installing Bridge .deb..."
+      sudo apt-get install -y "$BRIDGE_PKG" && BRIDGE_OK=1
+    fi
+  fi
+
+  rm -rf "$BRIDGE_DL_DIR"
+
+  if [[ $BRIDGE_OK -eq 1 ]]; then
+    ok "Proton Mail Bridge installed"
+  else
+    warn "Automatic download failed — this can happen if Proton changes their download URLs."
+    printf "\n"
+    warn "Please install Proton Mail Bridge manually:"
+    printf "    1. Go to ${BOLD}https://proton.me/mail/bridge${NC}\n"
+    if is_fedora || is_opensuse; then
+      printf "    2. Download the ${BOLD}.rpm${NC} package\n"
+    else
+      printf "    2. Download the ${BOLD}.deb${NC} package\n"
+    fi
+    printf "    3. Double-click the downloaded file to install it\n\n"
+  fi
+fi
+
+# ── Step 4: Register systemd user services ───────────────────────────────────
+step "Step 4 / $TOTAL_STEPS — Registering background services"
 info "Reloading systemd user daemon..."
 systemctl --user daemon-reload
 
 for svc in protonmail-bridge.service proton-calendar-bridge.service; do
   if systemctl --user list-unit-files "$svc" &>/dev/null; then
     systemctl --user enable "$svc" 2>/dev/null || true
-    ok "Enabled $svc (will start automatically after you install its bridge)"
+    ok "Enabled $svc"
   fi
 done
 ok "Services registered"
 
-# ── Step 5: Proton Mail Bridge (manual) ───────────────────────────────────────
-step "Step 5 / 5 — Install Proton Mail Bridge"
-
-if is_fedora; then PKG_TYPE=".rpm (RPM package)"
-elif is_ubuntu; then PKG_TYPE=".deb (Debian package)"
-else PKG_TYPE=".rpm (RPM package)"
-fi
-
-printf "
-  Proton Mail Bridge needs to be installed separately because it
-  requires you to sign in to your Proton account during setup.
-
-  ┌──────────────────────────────────────────────────────────────┐
-  │                                                              │
-  │  1. Open this link in a browser:                            │
-  │       https://proton.me/mail/bridge                         │
-  │                                                              │
-  │  2. Download the %-36s│
-  │                                                              │
-  │  3. Double-click the downloaded file to install it.         │
-  │                                                              │
-  │  4. Open Proton Mail Bridge from your applications menu     │
-  │     and sign in with your Proton account.                   │
-  │                                                              │
-  └──────────────────────────────────────────────────────────────┘
-
-" "$PKG_TYPE"
-
-read -rp "  Once Proton Mail Bridge is installed and running, press Enter: "
-
-# Try to start the bridge service now
-if systemctl --user list-unit-files protonmail-bridge.service &>/dev/null; then
-  if command -v protonmail-bridge &>/dev/null; then
-    systemctl --user start protonmail-bridge.service 2>/dev/null \
-      && ok "protonmail-bridge service started" \
-      || warn "Could not start protonmail-bridge.service — you can start it later with:\n\n    systemctl --user start protonmail-bridge"
-  else
-    warn "protonmail-bridge binary not found yet."
-    warn "After installing it, start the service with:"
-    printf "    systemctl --user start protonmail-bridge\n\n"
-  fi
+# Try to start services
+if command -v protonmail-bridge &>/dev/null; then
+  systemctl --user start protonmail-bridge.service 2>/dev/null \
+    && ok "protonmail-bridge service started" \
+    || warn "Could not start protonmail-bridge — start it later with: systemctl --user start protonmail-bridge"
 fi
 
 if command -v proton-calendar-bridge &>/dev/null; then
   systemctl --user start proton-calendar-bridge.service 2>/dev/null \
     && ok "proton-calendar-bridge service started" \
-    || warn "Could not start proton-calendar-bridge.service automatically."
+    || true
 fi
 
-# ── Final summary ─────────────────────────────────────────────────────────────
+# ── Final summary ────────────────────────────────────────────────────────────
 printf "
 ${BOLD}╔══════════════════════════════════════════════════════════════╗
 ║                      All done!                               ║
 ╚══════════════════════════════════════════════════════════════╝${NC}
 
-  ${BOLD}To finish setup:${NC}
+  ${BOLD}Next steps:${NC}
 
-    1.  Make sure Proton Mail Bridge is installed and you are signed
-        in (see Step 5 above if you haven't done this yet).
+    1.  Open ${BOLD}Proton Mail Bridge${NC} from your applications menu
+        and sign in with your Proton account.
 
     2.  Open ${BOLD}GNOME Settings${NC}  →  ${BOLD}Online Accounts${NC}
         and click the Proton option to add your account.
 
     3.  Done!  Your Proton Mail appears in Evolution / Geary,
-        Proton Drive appears in the Files app (Nautilus sidebar),
+        Proton Drive appears in the Files app sidebar,
         and your calendars appear in GNOME Calendar.
 
   ${BOLD}Useful commands:${NC}
-    Check service status :  bash install.sh --status
+    Check install status :  bash install.sh --status
     View mail bridge logs:  journalctl --user -u protonmail-bridge -f
     View cal bridge logs :  journalctl --user -u proton-calendar-bridge -f
+    Uninstall everything :  bash install.sh --uninstall
 
 "
