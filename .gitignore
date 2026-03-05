@@ -1,0 +1,20 @@
+# Build directories
+builddir/
+_build/
+
+# Claude Code internal worktrees (ephemeral, not for version control)
+.claude/
+
+# Editor files
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
