@@ -8,8 +8,8 @@
 #ifndef __GOA_PROTON_MAIL_PROVIDER_H__
 #define __GOA_PROTON_MAIL_PROVIDER_H__
 
-#include <goa/goa.h>
 #include <goabackend/goabackend.h>
+#include "goaprovider-priv.h"
 
 G_BEGIN_DECLS
 
@@ -17,8 +17,6 @@ G_DECLARE_FINAL_TYPE (GoaProtonMailProvider,
                       goa_proton_mail_provider,
                       GOA, PROTON_MAIL_PROVIDER,
                       GoaProvider)
-
-void goa_proton_mail_provider_register_type (GTypeModule *module);
 
 G_END_DECLS
 

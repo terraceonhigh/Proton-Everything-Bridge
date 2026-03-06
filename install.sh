@@ -286,10 +286,32 @@ info "Installing the plugin (needs sudo)..."
 sudo ninja -C "$BUILD_DIR" install
 ok "Plugin installed"
 
-# Build proton-calendar-bridge if submodule is available
+# Verify plugin was installed correctly
+info "Verifying plugin installation..."
+GOA_PLUGIN_PATH=""
+for p in /usr/lib64/gnome-online-accounts/goa-proton.so \
+         /usr/lib/gnome-online-accounts/goa-proton.so; do
+  if [ -e "$p" ]; then GOA_PLUGIN_PATH="$p"; break; fi
+done
+if [ -n "$GOA_PLUGIN_PATH" ]; then
+  if ldd "$GOA_PLUGIN_PATH" 2>&1 | grep -q "not found"; then
+    warn "Plugin installed but has missing library dependencies:"
+    ldd "$GOA_PLUGIN_PATH" 2>&1 | grep "not found" | sed 's/^/    /'
+  else
+    ok "Plugin verified at $GOA_PLUGIN_PATH — all dependencies satisfied"
+  fi
+else
+  warn "Plugin .so not found at expected locations — GOA may not discover the providers."
+fi
+
+# Build proton-calendar-bridge if submodule is available and valid
 CAL_SRC="$REPO_DIR/proton-calendar-bridge"
 if [ -d "$CAL_SRC" ] && [ -n "$(ls -A "$CAL_SRC" 2>/dev/null)" ]; then
-  if command -v go &>/dev/null; then
+  if [ ! -f "$CAL_SRC/go.mod" ]; then
+    warn "proton-calendar-bridge submodule present but missing go.mod — skipping build."
+  elif ! command -v go &>/dev/null; then
+    warn "Go compiler not found — skipping proton-calendar-bridge."
+  else
     info "Building proton-calendar-bridge..."
     ( cd "$CAL_SRC" && go build -o proton-calendar-bridge ./cmd/proton-calendar-bridge/... 2>&1 \
         | sed 's/^/    /' ) || warn "proton-calendar-bridge build failed — calendar sync will not work until you build it manually."
@@ -298,9 +320,25 @@ if [ -d "$CAL_SRC" ] && [ -n "$(ls -A "$CAL_SRC" 2>/dev/null)" ]; then
       sudo chmod 755 /usr/local/bin/proton-calendar-bridge
       ok "proton-calendar-bridge installed to /usr/local/bin/"
     fi
-  else
-    warn "Go compiler not found — skipping proton-calendar-bridge."
   fi
+elif [ -d "$CAL_SRC" ]; then
+  warn "proton-calendar-bridge submodule is empty — calendar integration unavailable."
+  warn "If you need calendar support, run: git submodule update --init --recursive"
+fi
+
+# Configure rclone Proton Drive remote
+if command -v rclone &>/dev/null; then
+  info "Checking rclone Proton Drive remote..."
+  if rclone listremotes 2>/dev/null | grep -q "^proton:$"; then
+    ok "rclone 'proton:' remote already configured"
+  else
+    info "Creating rclone 'proton:' remote..."
+    rclone config create proton protondrive 2>/dev/null \
+      && ok "rclone 'proton:' remote created" \
+      || warn "Could not auto-create rclone remote — run 'rclone config' manually to set up a 'proton:' remote."
+  fi
+  mkdir -p "$HOME/ProtonDrive"
+  ok "Proton Drive mount point ready at ~/ProtonDrive"
 fi
 
 # ── Step 3: Install Proton Mail Bridge ───────────────────────────────────────
@@ -353,6 +391,28 @@ else
       printf "    2. Download the ${BOLD}.deb${NC} package\n"
     fi
     printf "    3. Double-click the downloaded file to install it\n\n"
+  fi
+fi
+
+# Prompt user to log in to Proton Mail Bridge
+if command -v protonmail-bridge &>/dev/null; then
+  printf "\n"
+  printf "  ${BOLD}══════════════════════════════════════════════════${NC}\n"
+  printf "  ${BOLD}  Proton Mail Bridge — First-Time Login Required  ${NC}\n"
+  printf "  ${BOLD}══════════════════════════════════════════════════${NC}\n"
+  printf "\n"
+  printf "  Proton Mail Bridge must be opened and signed in with\n"
+  printf "  your Proton account before GNOME can use it.\n"
+  printf "\n"
+  read -r -p "  Would you like to open Proton Mail Bridge now? [Y/n] " BRIDGE_RESPONSE </dev/tty || BRIDGE_RESPONSE="n"
+  if [[ "$BRIDGE_RESPONSE" =~ ^[Yy]?$ ]] && [[ -n "$BRIDGE_RESPONSE" || -t 0 ]]; then
+    info "Starting Proton Mail Bridge..."
+    info "Please log in with your Proton account, then close the window when done."
+    protonmail-bridge 2>/dev/null &
+    BRIDGE_PID=$!
+    printf "\n"
+    read -r -p "  Press Enter when you have finished logging in... " </dev/tty || true
+    ok "Continuing with installation"
   fi
 fi
 
