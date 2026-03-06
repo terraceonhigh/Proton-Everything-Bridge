@@ -4,7 +4,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/proton-calendar-bridge
+ExecStart=/usr/local/bin/proton-calendar-bridge
 Restart=on-failure
 RestartSec=5
 
