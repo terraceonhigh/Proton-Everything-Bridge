@@ -45,6 +45,12 @@ goa_proton_drive_provider_get_provider_icon (GoaProvider *provider,
   return g_themed_icon_new_with_default_fallbacks ("proton-drive-symbolic");
 }
 
+static GoaProviderGroup
+goa_proton_drive_provider_get_provider_group (GoaProvider *provider)
+{
+  return GOA_PROVIDER_GROUP_BRANDED;
+}
+
 static GoaProviderFeatures
 goa_proton_drive_provider_get_provider_features (GoaProvider *provider)
 {
@@ -108,6 +114,7 @@ goa_proton_drive_provider_class_init (GoaProtonDriveProviderClass *klass)
 
   provider_class->get_provider_type          = goa_proton_drive_provider_get_provider_type;
   provider_class->get_provider_name          = goa_proton_drive_provider_get_provider_name;
+  provider_class->get_provider_group         = goa_proton_drive_provider_get_provider_group;
   provider_class->get_provider_icon          = goa_proton_drive_provider_get_provider_icon;
   provider_class->get_provider_features      = goa_proton_drive_provider_get_provider_features;
   provider_class->add_account                = goa_proton_drive_provider_add_account;

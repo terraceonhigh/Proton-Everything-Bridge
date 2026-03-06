@@ -117,7 +117,20 @@ fi
 if [[ $UNINSTALL -eq 1 ]]; then
   printf "\n${BOLD}Proton on GNOME Online Accounts — uninstall${NC}\n\n"
 
-  # Stop and disable services
+  # Stop and disable proton-drive-bridge instances
+  DRIVE_INSTANCES=$(systemctl --user list-units --no-legend --plain \
+    'proton-drive-bridge@*' 2>/dev/null | awk '{print $1}' || true)
+  if [ -n "$DRIVE_INSTANCES" ]; then
+    while IFS= read -r instance; do
+      systemctl --user stop "$instance" 2>/dev/null && ok "Stopped $instance" || true
+    done <<< "$DRIVE_INSTANCES"
+  fi
+  if mountpoint -q "$HOME/ProtonDrive" 2>/dev/null; then
+    fusermount -u "$HOME/ProtonDrive" 2>/dev/null && ok "Unmounted ~/ProtonDrive" || true
+  fi
+  systemctl --user disable 'proton-drive-bridge@.service' 2>/dev/null || true
+
+  # Stop and disable remaining services
   for svc in protonmail-bridge.service proton-calendar-bridge.service; do
     if systemctl --user is-active "$svc" &>/dev/null; then
       systemctl --user stop "$svc" 2>/dev/null && ok "Stopped $svc"
@@ -139,6 +152,14 @@ if [[ $UNINSTALL -eq 1 ]]; then
   if [ -e /usr/local/bin/proton-calendar-bridge ]; then
     sudo rm -f /usr/local/bin/proton-calendar-bridge && ok "Removed proton-calendar-bridge"
   fi
+
+  # Remove systemd unit files
+  UNIT_DIR="/usr/lib/systemd/user"
+  for unit in protonmail-bridge.service proton-calendar-bridge.service "proton-drive-bridge@.service"; do
+    if [ -e "$UNIT_DIR/$unit" ]; then
+      sudo rm -f "$UNIT_DIR/$unit" && ok "Removed $UNIT_DIR/$unit"
+    fi
+  done
 
   systemctl --user daemon-reload 2>/dev/null || true
   printf "\n  ${GREEN}Done.${NC} Proton Mail Bridge (if installed via your package manager)\n"
@@ -346,6 +367,13 @@ for svc in protonmail-bridge.service proton-calendar-bridge.service; do
     ok "Enabled $svc"
   fi
 done
+
+# Enable proton-drive-bridge for the current user
+DRIVE_SVC="proton-drive-bridge@$(id -un).service"
+if systemctl --user list-unit-files 'proton-drive-bridge@.service' &>/dev/null; then
+  systemctl --user enable "$DRIVE_SVC" 2>/dev/null && ok "Enabled $DRIVE_SVC" || true
+fi
+
 ok "Services registered"
 
 # Try to start services
@@ -359,6 +387,12 @@ if command -v proton-calendar-bridge &>/dev/null; then
   systemctl --user start proton-calendar-bridge.service 2>/dev/null \
     && ok "proton-calendar-bridge service started" \
     || true
+fi
+
+if command -v rclone &>/dev/null; then
+  systemctl --user start "$DRIVE_SVC" 2>/dev/null \
+    && ok "proton-drive-bridge service started" \
+    || warn "Could not start proton-drive-bridge — start it later with: systemctl --user start $DRIVE_SVC"
 fi
 
 # ── Final summary ────────────────────────────────────────────────────────────
