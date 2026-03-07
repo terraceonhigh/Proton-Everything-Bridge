@@ -227,6 +227,7 @@ if is_fedora; then
     gnome-online-accounts-devel \
     glib2-devel libsecret-devel \
     libsoup3-devel json-glib-devel \
+    libadwaita-devel \
     rclone golang \
     fuse3
 
@@ -240,6 +241,7 @@ elif is_ubuntu; then
     libgoa-backend-1.0-dev \
     libglib2.0-dev libsecret-1-dev \
     libsoup-3.0-dev libjson-glib-dev \
+    libadwaita-1-dev \
     rclone golang-go \
     fuse3
 
@@ -249,6 +251,7 @@ elif is_opensuse; then
     gnome-online-accounts-devel \
     glib2-devel libsecret-devel \
     libsoup3-devel libjson-glib-devel \
+    libadwaita-devel \
     rclone go \
     fuse3
 fi
