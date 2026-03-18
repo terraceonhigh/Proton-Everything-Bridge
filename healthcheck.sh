@@ -40,11 +40,11 @@ case "$SERVICE" in
     all)
         echo "Proton DAV Server — Health Check"
         echo ""
-        check_port proton-mail-bridge     1143 "IMAP (Mail Bridge)"     || FAILED=$((FAILED + 1))
-        check_port proton-mail-bridge     1025 "SMTP (Mail Bridge)"     || FAILED=$((FAILED + 1))
-        check_port proton-calendar-bridge 9842 "CalDAV (Calendar)"      || FAILED=$((FAILED + 1))
-        check_port rclone-webdav          9844 "WebDAV (Drive)"         || FAILED=$((FAILED + 1))
-        check_port hydroxide              8080 "CardDAV (Contacts)"     || FAILED=$((FAILED + 1))
+        check_port proton-bridge 1143 "IMAP (Mail Bridge)"     || FAILED=$((FAILED + 1))
+        check_port proton-bridge 1025 "SMTP (Mail Bridge)"     || FAILED=$((FAILED + 1))
+        check_port proton-bridge 9842 "CalDAV (Calendar)"      || FAILED=$((FAILED + 1))
+        check_port proton-bridge 9844 "WebDAV (Drive)"         || FAILED=$((FAILED + 1))
+        check_port proton-bridge 8080 "CardDAV (Contacts)"     || FAILED=$((FAILED + 1))
         echo ""
         if [ "$FAILED" -gt 0 ]; then
             echo "$FAILED service(s) not responding."
@@ -53,10 +53,10 @@ case "$SERVICE" in
             echo "All services healthy."
         fi
         ;;
-    imap|mail)     check_port proton-mail-bridge     1143 "IMAP" || exit 1 ;;
-    smtp)          check_port proton-mail-bridge     1025 "SMTP" || exit 1 ;;
-    caldav|cal)    check_port proton-calendar-bridge 9842 "CalDAV" || exit 1 ;;
-    webdav|drive)  check_port rclone-webdav          9844 "WebDAV" || exit 1 ;;
-    carddav|card)  check_port hydroxide              8080 "CardDAV" || exit 1 ;;
+    imap|mail)     check_port proton-bridge 1143 "IMAP" || exit 1 ;;
+    smtp)          check_port proton-bridge 1025 "SMTP" || exit 1 ;;
+    caldav|cal)    check_port proton-bridge 9842 "CalDAV" || exit 1 ;;
+    webdav|drive)  check_port proton-bridge 9844 "WebDAV" || exit 1 ;;
+    carddav|card)  check_port proton-bridge 8080 "CardDAV" || exit 1 ;;
     *)             echo "Unknown service: $SERVICE"; exit 1 ;;
 esac

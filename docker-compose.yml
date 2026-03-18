@@ -6,29 +6,29 @@
 # Quick start:
 #   docker compose up -d
 #
-# First-time setup for each service:
-#   Mail:     docker compose exec proton-mail-bridge protonmail-bridge --cli
-#   Drive:    docker compose run --rm rclone-webdav rclone config
-#   Contacts: docker compose exec hydroxide hydroxide auth <username>
+# First-time setup (run BEFORE 'up -d'):
+#   docker compose run --rm proton-bridge protonmail-bridge --cli
+#   docker compose run --rm proton-bridge proton-calendar-bridge --login
+#   docker compose run --rm proton-bridge rclone config
 
 services:
-  # ── IMAP/SMTP — Proton Mail Bridge ──────────────────────────────────────
-  proton-mail-bridge:
+  proton-bridge:
     platform: linux/amd64
     build:
-      context: ./containers/proton-mail-bridge
+      context: ./containers/proton-bridge
     restart: unless-stopped
     ports:
       - "127.0.0.1:1143:1143"   # IMAP
       - "127.0.0.1:1025:1025"   # SMTP
+      - "127.0.0.1:9842:9842"   # CalDAV
+      - "127.0.0.1:9844:9844"   # WebDAV
     volumes:
-      - mail_bridge_data:/root/.config/protonmail/bridge-v3
-      - mail_bridge_cache:/root/.cache/protonmail/bridge-v3
+      - proton_data:/data
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: "1.0"
+          memory: 768M
+          cpus: "1.5"
     healthcheck:
       test: ["CMD", "nc", "-z", "127.0.0.1", "1143"]
       interval: 60s
@@ -36,84 +36,5 @@ services:
       retries: 3
       start_period: 30s
 
-  # ── CalDAV — Proton Calendar Bridge ─────────────────────────────────────
-  proton-calendar-bridge:
-    build:
-      context: ./containers/proton-calendar-bridge
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:9842:9842"   # CalDAV
-    volumes:
-      - calendar_bridge_data:/root/.config/proton-calendar-bridge
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.5"
-    healthcheck:
-      test: ["CMD", "nc", "-z", "127.0.0.1", "9842"]
-      interval: 60s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-  # ── WebDAV — rclone serve webdav (Proton Drive) ─────────────────────────
-  rclone-webdav:
-    image: rclone/rclone:latest
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:9844:9844"   # WebDAV
-    command: >
-      serve webdav proton:
-      --addr 0.0.0.0:9844
-      --vfs-cache-mode minimal
-      --vfs-cache-max-age 30m
-      --transfers 2
-      --checkers 2
-      --buffer-size 16M
-    volumes:
-      - rclone_config:/config/rclone
-      - rclone_cache:/root/.cache/rclone
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.5"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9844/"]
-      interval: 60s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-  # ── CardDAV — hydroxide (experimental) ──────────────────────────────────
-  # Disabled by default. Start with: docker compose --profile carddav up -d
-  hydroxide:
-    build:
-      context: ./containers/hydroxide
-    restart: unless-stopped
-    profiles:
-      - carddav
-    ports:
-      - "127.0.0.1:8080:8080"   # CardDAV
-    volumes:
-      - hydroxide_data:/root/.config/hydroxide
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: "0.25"
-    healthcheck:
-      test: ["CMD", "nc", "-z", "127.0.0.1", "8080"]
-      interval: 60s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
 volumes:
-  mail_bridge_data:
-  mail_bridge_cache:
-  calendar_bridge_data:
-  rclone_config:
-  rclone_cache:
-  hydroxide_data:
+  proton_data:

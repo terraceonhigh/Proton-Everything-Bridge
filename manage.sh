@@ -66,10 +66,11 @@ add_caddy_routes() {
     return 1
   fi
 
+  local container="${project}-proton-bridge-1"
   local -a services=(
-    "caldav:${project}-proton-calendar-bridge-1:9842"
-    "webdav:${project}-rclone-webdav-1:9844"
-    "carddav:${project}-hydroxide-1:8080"
+    "caldav:${container}:9842"
+    "webdav:${container}:9844"
+    "carddav:${container}:8080"
   )
 
   for entry in "${services[@]}"; do
@@ -137,18 +138,19 @@ cmd_add() {
 
   printf "\n${BOLD}Adding account: ${name}${NC}\n\n"
 
-  # Create the user stack
-  info "Building and starting bridge containers..."
-  (cd "$SCRIPT_DIR" && docker compose -p "$(project_name "$name")" -f "$USER_COMPOSE" up -d --build 2>&1 | sed 's/^/    /')
-  ok "Containers started"
+  # Build image only — don't start yet (no credentials = crash loop)
+  info "Building bridge container..."
+  (cd "$SCRIPT_DIR" && docker compose -p "$(project_name "$name")" -f "$USER_COMPOSE" build 2>&1 | sed 's/^/    /')
+  ok "Image built"
+
+  # Interactive login populates the shared volume with credentials
+  cmd_login "$name"
 
   # Add Caddy routes
   info "Configuring reverse proxy routes..."
   add_caddy_routes "$name"
 
-  printf "\n${BOLD}Account '$name' created. Starting bridge login...${NC}\n"
-
-  cmd_login "$name"
+  printf "\n${BOLD}Account '$name' ready.${NC}\n"
 }
 
 cmd_login() {
@@ -159,11 +161,6 @@ cmd_login() {
   local project
   project=$(project_name "$name")
 
-  # Verify stack exists
-  if ! docker compose -p "$project" -f "$USER_COMPOSE" ps --quiet 2>/dev/null | grep -q .; then
-    die "Account '$name' not found. Use '$0 add $name' first."
-  fi
-
   printf "
 ${BOLD}━━  Bridge Login for '$name'  ━━${NC}
 
@@ -171,6 +168,9 @@ ${BOLD}━━  Bridge Login for '$name'  ━━${NC}
   This is a one-time setup — credentials are stored in Docker volumes.
 
 "
+
+  # Stop any running containers first (avoids lock file conflicts)
+  (cd "$SCRIPT_DIR" && docker compose -p "$project" -f "$USER_COMPOSE" stop 2>/dev/null) || true
 
   # ── Step 1: Mail Bridge ──────────────────────────────────────────────────
   printf "${BOLD}Step 1 / 3 — Mail Bridge${NC}\n\n"
@@ -181,7 +181,7 @@ ${BOLD}━━  Bridge Login for '$name'  ━━${NC}
 
   read -r -p "  Press Enter to open Mail Bridge CLI... " </dev/tty || true
   (cd "$SCRIPT_DIR" && docker compose -p "$project" -f "$USER_COMPOSE" \
-    exec proton-mail-bridge protonmail-bridge --cli) </dev/tty || \
+    run --rm proton-bridge protonmail-bridge --cli) </dev/tty || \
     warn "Mail Bridge login failed or was skipped"
 
   printf "\n"
@@ -192,7 +192,7 @@ ${BOLD}━━  Bridge Login for '$name'  ━━${NC}
 
   read -r -p "  Press Enter to open Calendar Bridge login... " </dev/tty || true
   (cd "$SCRIPT_DIR" && docker compose -p "$project" -f "$USER_COMPOSE" \
-    exec proton-calendar-bridge proton-calendar-bridge --login) </dev/tty || \
+    run --rm proton-bridge proton-calendar-bridge --login) </dev/tty || \
     warn "Calendar Bridge login failed or was skipped"
 
   printf "\n"
@@ -207,8 +207,13 @@ ${BOLD}━━  Bridge Login for '$name'  ━━${NC}
 
   read -r -p "  Press Enter to open rclone config... " </dev/tty || true
   (cd "$SCRIPT_DIR" && docker compose -p "$project" -f "$USER_COMPOSE" \
-    exec rclone-webdav rclone config) </dev/tty || \
+    run --rm proton-bridge rclone config) </dev/tty || \
     warn "rclone config failed or was skipped"
+
+  # Start the container with credentials now in place
+  printf "\n"
+  info "Starting bridge services..."
+  (cd "$SCRIPT_DIR" && docker compose -p "$project" -f "$USER_COMPOSE" up -d 2>&1 | sed 's/^/    /')
 
   printf "
 ${BOLD}━━  Login complete!  ━━${NC}
@@ -235,7 +240,7 @@ ${BOLD}━━  Endpoint URLs for '$name'  ━━${NC}
 
   ${BOLD}IMAP (Mail — incoming):${NC}
     Server:   $DOMAIN
-    Port:     1143  ${DIM}(via container: $(project_name "$name")-proton-mail-bridge-1)${NC}
+    Port:     1143  ${DIM}(via container: $(project_name "$name")-proton-bridge-1)${NC}
     Security: STARTTLS
     ${DIM}Note: Use the bridge password from 'protonmail-bridge --cli > info'${NC}
 

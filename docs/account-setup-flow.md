@@ -36,7 +36,7 @@ Open **https://your-domain/** in your browser and log in with the credentials
 you set during install.
 
 Click **[+ Add Account]** and enter a name (e.g., `alice`). The server will
-spin up isolated bridge containers for that account.
+spin up an isolated bridge container for that account.
 
 ### 3. Authenticate the bridges
 
@@ -47,7 +47,7 @@ your server and run them:
 ```bash
 docker compose -p user-alice \
   -f docker-compose.user.yml \
-  exec proton-mail-bridge protonmail-bridge --cli
+  run --rm proton-bridge protonmail-bridge --cli
 > login
 > (enter Proton credentials)
 > info   (note the bridge password)
@@ -58,7 +58,7 @@ docker compose -p user-alice \
 ```bash
 docker compose -p user-alice \
   -f docker-compose.user.yml \
-  exec rclone-webdav rclone config
+  run --rm proton-bridge rclone config
 > n      (new remote)
 > proton (name)
 > protondrive (type)
@@ -69,14 +69,14 @@ docker compose -p user-alice \
 ```bash
 docker compose -p user-alice \
   -f docker-compose.user.yml \
-  exec proton-calendar-bridge proton-calendar-bridge --login
+  run --rm proton-bridge proton-calendar-bridge --login
 ```
 
 **Contacts (experimental):**
 ```bash
 docker compose -p user-alice \
   -f docker-compose.user.yml \
-  exec hydroxide hydroxide auth alice@proton.me
+  run --rm proton-bridge hydroxide auth alice@proton.me
 ```
 
 ### 4. Configure your apps
@@ -113,7 +113,7 @@ Other Locations → Connect to Server → `davs://your-domain/users/alice/webdav
 ### Adding more accounts
 
 Repeat steps 2-4 for each Proton account. Each account gets its own isolated
-containers and endpoints. Alice and Bob will have completely separate data.
+containers and endpoints.
 
 ---
 

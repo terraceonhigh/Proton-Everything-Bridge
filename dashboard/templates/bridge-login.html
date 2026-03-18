@@ -13,7 +13,7 @@
     <p class="step"><span class="step-num">1</span> Mail Bridge</p>
     <div class="cmd">docker compose -p user-{{.Name}} \
   -f docker-compose.user.yml \
-  exec proton-mail-bridge \
+  run --rm proton-bridge \
   protonmail-bridge --cli
 
 &gt; login
@@ -24,13 +24,13 @@
     <p class="step"><span class="step-num">2</span> Calendar Bridge</p>
     <div class="cmd">docker compose -p user-{{.Name}} \
   -f docker-compose.user.yml \
-  exec proton-calendar-bridge \
+  run --rm proton-bridge \
   proton-calendar-bridge --login</div>
 
     <p class="step"><span class="step-num">3</span> Drive (rclone)</p>
     <div class="cmd">docker compose -p user-{{.Name}} \
   -f docker-compose.user.yml \
-  exec rclone-webdav rclone config
+  run --rm proton-bridge rclone config
 
 &gt; n      (new remote)
 &gt; proton (name it 'proton')
@@ -40,7 +40,7 @@
     <p class="step"><span class="step-num">4</span> Contacts (experimental)</p>
     <div class="cmd">docker compose -p user-{{.Name}} \
   -f docker-compose.user.yml \
-  exec hydroxide \
+  run --rm proton-bridge \
   hydroxide auth {{.Name}}@proton.me</div>
 </div>
 

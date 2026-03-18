@@ -42,9 +42,9 @@
 
 	# ── Per-user routes are added dynamically ───────────────────────
 	# The dashboard calls Caddy's admin API to add routes like:
-	#   /users/alice/caldav/*  → user-alice-proton-calendar-bridge-1:9842
-	#   /users/alice/webdav/*  → user-alice-rclone-webdav-1:9844
-	#   /users/alice/carddav/* → user-alice-hydroxide-1:8080
+	#   /users/alice/caldav/*  → user-alice-proton-bridge-1:9842
+	#   /users/alice/webdav/*  → user-alice-proton-bridge-1:9844
+	#   /users/alice/carddav/* → user-alice-proton-bridge-1:8080
 	#
 	# These are injected at runtime — no restart needed.
 

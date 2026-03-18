@@ -23,14 +23,8 @@ func loadTemplates() *template.Template {
 // serviceLabel returns a human-friendly label for a Docker service name.
 func serviceLabel(name string) string {
 	switch name {
-	case "proton-mail-bridge":
-		return "Mail"
-	case "proton-calendar-bridge":
-		return "Calendar"
-	case "rclone-webdav":
-		return "Drive"
-	case "hydroxide":
-		return "Contacts"
+	case "proton-bridge":
+		return "Proton Bridge"
 	default:
 		return name
 	}

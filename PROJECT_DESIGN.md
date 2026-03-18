@@ -42,15 +42,15 @@ leak to clients.
 
 ### Multi-User Design
 
-Each Proton account gets an isolated set of bridge containers via Docker
+Each Proton account gets an isolated all-in-one bridge container via Docker
 Compose project namespacing:
 
 ```
 docker compose -p user-alice -f docker-compose.user.yml up -d
 ```
 
-This creates `user-alice-proton-mail-bridge-1`, `user-alice-rclone-webdav-1`,
-etc. — each with their own volumes, credentials, and network namespace.
+This creates `user-alice-proton-bridge-1` — a single container running all
+bridge services with its own volume, credentials, and network namespace.
 
 ### Routing
 
@@ -58,9 +58,9 @@ A single Caddy instance serves all users. Per-user routes are added
 dynamically via Caddy's admin API when accounts are provisioned:
 
 ```
-/users/alice/caldav/*  → user-alice-proton-calendar-bridge-1:9842
-/users/alice/webdav/*  → user-alice-rclone-webdav-1:9844
-/users/alice/carddav/* → user-alice-hydroxide-1:8080
+/users/alice/caldav/*  → user-alice-proton-bridge-1:9842
+/users/alice/webdav/*  → user-alice-proton-bridge-1:9844
+/users/alice/carddav/* → user-alice-proton-bridge-1:8080
 ```
 
 Path-based routing was chosen over subdomains because:
@@ -115,10 +115,7 @@ dashboard/                       # Go + htmx web panel
 ├── caddy.go                     # Caddy admin API client
 └── templates/                   # HTML templates (htmx)
 containers/                      # Bridge Dockerfiles
-├── proton-mail-bridge/
-├── proton-calendar-bridge/
-├── rclone-webdav/
-└── hydroxide/
+└── proton-bridge/               # All-in-one container (mail + cal + drive)
 install-server.sh                # Guided installer
 ```
 
@@ -157,5 +154,5 @@ See [MASTER_BUILD_PLAN.md](desktop/MASTER_BUILD_PLAN.md) for implementation deta
 | proton-mail-bridge requires interactive login | Dashboard shows CLI commands; future: web terminal |
 | Caddy routes lost on restart | Dashboard reconciles on startup |
 | Docker socket access in dashboard | Mounted read-only; only runs compose commands |
-| 4 containers per user (resource intensive) | Dashboard shows resource info; document minimums |
+| All bridges in one container | tini manages processes; Docker restarts on any crash |
 | Bridge credential format changes | Version-guard parsing; fall back to UI prompt |

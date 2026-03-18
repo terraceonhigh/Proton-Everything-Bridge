@@ -60,7 +60,7 @@ func (dc *DockerCompose) ListUsers() ([]string, error) {
 
 // ServiceStatus represents the health of a single bridge service.
 type ServiceStatus struct {
-	Name    string // e.g. "proton-mail-bridge"
+	Name    string // e.g. "proton-bridge"
 	Running bool
 	Health  string // "healthy", "unhealthy", "starting", ""
 }

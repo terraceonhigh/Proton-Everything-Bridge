@@ -36,19 +36,19 @@ func (c *CaddyClient) AddUserRoutes(username, domain string) error {
 			ID:      userRouteID(username) + "-caldav",
 			Match:   prefix + "/caldav/*",
 			Strip:   prefix + "/caldav",
-			Upstream: project + "-proton-calendar-bridge-1:9842",
+			Upstream: project + "-proton-bridge-1:9842",
 		},
 		{
 			ID:      userRouteID(username) + "-webdav",
 			Match:   prefix + "/webdav/*",
 			Strip:   prefix + "/webdav",
-			Upstream: project + "-rclone-webdav-1:9844",
+			Upstream: project + "-proton-bridge-1:9844",
 		},
 		{
 			ID:      userRouteID(username) + "-carddav",
 			Match:   prefix + "/carddav/*",
 			Strip:   prefix + "/carddav",
-			Upstream: project + "-hydroxide-1:8080",
+			Upstream: project + "-proton-bridge-1:8080",
 		},
 	}
 
@@ -78,7 +78,7 @@ type caddyRoute struct {
 	ID       string
 	Match    string // path matcher, e.g. "/users/alice/caldav/*"
 	Strip    string // prefix to strip before proxying
-	Upstream string // backend address, e.g. "user-alice-proton-calendar-bridge-1:9842"
+	Upstream string // backend address, e.g. "user-alice-proton-bridge-1:9842"
 }
 
 // addRoute posts a single route to Caddy's admin API.
