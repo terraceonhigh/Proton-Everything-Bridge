@@ -10,26 +10,35 @@
 #   > info
 #   > (note the bridge password for your email client)
 
+# ── Build stage ──
+FROM golang:1.24-bookworm AS builder
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git make gcc pkg-config \
+        libsecret-1-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+RUN git clone --depth 1 https://github.com/ProtonMail/proton-bridge.git .
+
+RUN make build-nogui
+
+# ── Runtime ──
 FROM ubuntu:24.04
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
-        curl \
         netcat-openbsd \
         gnome-keyring \
+        libsecret-1-0 \
         pass \
         dbus-x11 && \
     rm -rf /var/lib/apt/lists/*
 
-# Download and install Proton Mail Bridge
-# The URL redirects to the latest stable release
-RUN curl -fSL -o /tmp/bridge.deb \
-        "https://proton.me/download/bridge/protonmail-bridge_linux_x86.deb" && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends /tmp/bridge.deb && \
-    rm -f /tmp/bridge.deb && \
-    rm -rf /var/lib/apt/lists/*
+COPY --from=builder /build/bridge /usr/local/bin/protonmail-bridge
 
 EXPOSE 1143 1025
 
