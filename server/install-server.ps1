@@ -15,6 +15,10 @@
     .\install-server.ps1 -Status
     .\install-server.ps1 -Uninstall
 .NOTES
+    install-server.sh is the source of truth for the installer logic.
+    This PowerShell port mirrors it for Windows. When changing installer
+    behavior, update install-server.sh first, then port changes here.
+
     If blocked by execution policy, run once:
     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 #>

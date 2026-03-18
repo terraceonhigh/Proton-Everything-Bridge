@@ -34,6 +34,10 @@ cd server
 .\install-server.ps1
 ```
 
+> **Note:** `install-server.sh` is the source of truth for installer logic.
+> The PowerShell script is a port — when changing installer behavior, update
+> the bash script first, then port changes to `.ps1`.
+
 The installer sets up Docker, configures access control (localhost, LAN, or
 internet), and starts the server. When it finishes:
 
