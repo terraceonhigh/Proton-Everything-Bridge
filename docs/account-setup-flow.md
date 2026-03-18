@@ -4,16 +4,33 @@
 
 ### 1. Install the server
 
+**Linux / macOS:**
 ```bash
 cd server
 bash install-server.sh
 ```
 
+**Windows** (PowerShell):
+```powershell
+cd server
+.\install-server.ps1
+```
+
 The installer will:
-- Install Docker if needed
+- Install Docker if needed (Docker Desktop on Windows/macOS, Docker Engine on Linux)
 - Ask you to choose an access mode (localhost, LAN, whitelist, or internet)
 - Set up authentication credentials
 - Start the server
+
+### Windows prerequisites
+
+- **Windows 10 25H2** or later
+- **Docker Desktop** with WSL2 backend (the installer can install this via winget)
+- **PowerShell execution policy**: If you get an execution policy error, run once:
+  ```powershell
+  Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+  ```
+- Bridge login commands (step 3 below) work from PowerShell or Windows Terminal
 
 ### 2. Add an account
 

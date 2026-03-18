@@ -22,9 +22,16 @@ bridge containers and their own endpoints.
 
 ### Install
 
+**Linux / macOS:**
 ```bash
 cd server
 bash install-server.sh
+```
+
+**Windows** (PowerShell):
+```powershell
+cd server
+.\install-server.ps1
 ```
 
 The installer sets up Docker, configures access control (localhost, LAN, or
