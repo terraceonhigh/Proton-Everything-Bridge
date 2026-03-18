@@ -357,13 +357,17 @@ else
   BRIDGE_DL_DIR="$(mktemp -d)"
   BRIDGE_OK=0
 
-  # Proton publishes stable bridge packages at these URLs.
-  # The /download/bridge/linux endpoint redirects to the latest version.
-  if is_fedora || is_opensuse; then
+  # Fetch the latest version from GitHub releases (Proton no longer has a stable redirect URL)
+  BRIDGE_VERSION=$(curl -s "https://api.github.com/repos/ProtonMail/proton-bridge/releases/latest" | \
+      grep -m1 '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+
+  if [[ -z "$BRIDGE_VERSION" ]]; then
+    warn "Could not determine latest Bridge version from GitHub"
+  elif is_fedora || is_opensuse; then
     BRIDGE_PKG="$BRIDGE_DL_DIR/protonmail-bridge.rpm"
     if curl -fSL -o "$BRIDGE_PKG" \
-        "https://proton.me/download/bridge/protonmail-bridge_linux_x86.rpm" 2>/dev/null; then
-      info "Installing Bridge RPM..."
+        "https://github.com/ProtonMail/proton-bridge/releases/download/v${BRIDGE_VERSION}/protonmail-bridge_${BRIDGE_VERSION}-1.x86_64.rpm" 2>/dev/null; then
+      info "Installing Bridge RPM (v${BRIDGE_VERSION})..."
       if is_fedora; then
         sudo dnf install -y "$BRIDGE_PKG" && BRIDGE_OK=1
       else
@@ -373,8 +377,8 @@ else
   elif is_ubuntu; then
     BRIDGE_PKG="$BRIDGE_DL_DIR/protonmail-bridge.deb"
     if curl -fSL -o "$BRIDGE_PKG" \
-        "https://proton.me/download/bridge/protonmail-bridge_linux_x86.deb" 2>/dev/null; then
-      info "Installing Bridge .deb..."
+        "https://github.com/ProtonMail/proton-bridge/releases/download/v${BRIDGE_VERSION}/protonmail-bridge_${BRIDGE_VERSION}-1_amd64.deb" 2>/dev/null; then
+      info "Installing Bridge .deb (v${BRIDGE_VERSION})..."
       sudo apt-get install -y "$BRIDGE_PKG" && BRIDGE_OK=1
     fi
   fi
