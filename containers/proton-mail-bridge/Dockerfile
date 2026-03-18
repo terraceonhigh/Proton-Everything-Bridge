@@ -1,10 +1,10 @@
-# Proton Mail Bridge container
+# Proton Mail Bridge container (pre-built .deb via Rosetta)
 #
 # Provides IMAP on :1143 and SMTP on :1025
 # Recycled from: desktop/data/protonmail-bridge.service
 #
-# Builds from source because Proton only publishes amd64 .deb packages.
-# The build is pinned to a release tag for reproducibility.
+# Proton only publishes amd64 packages, so this image is forced to
+# linux/amd64 and runs under Rosetta on Apple Silicon.
 #
 # IMPORTANT: After first start, you must log in interactively:
 #   docker compose exec proton-mail-bridge protonmail-bridge --cli
@@ -13,30 +13,14 @@
 #   > info
 #   > (note the bridge password for your email client)
 
-# ── Build stage ──
-FROM golang:1.24-bookworm AS builder
+FROM --platform=linux/amd64 ubuntu:24.04
 
-ARG BRIDGE_TAG=v3.22.0
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        git make gcc pkg-config \
-        libsecret-1-dev libfido2-dev libcbor-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-WORKDIR /build
-
-RUN git clone --depth 1 --branch "${BRIDGE_TAG}" \
-      https://github.com/ProtonMail/proton-bridge.git .
-
-RUN make build-nogui
-
-# ── Runtime ──
-FROM ubuntu:24.04
+ARG BRIDGE_VERSION=3.22.0
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
+        curl \
         netcat-openbsd \
         gnome-keyring \
         libsecret-1-0 \
@@ -44,7 +28,14 @@ RUN apt-get update && \
         dbus-x11 && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/bridge /usr/local/bin/protonmail-bridge
+# Install the official .deb from GitHub releases (amd64 only).
+RUN curl -fsSL \
+      "https://github.com/ProtonMail/proton-bridge/releases/download/v${BRIDGE_VERSION}/protonmail-bridge_${BRIDGE_VERSION}-1_amd64.deb" \
+      -o /tmp/bridge.deb && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends /tmp/bridge.deb && \
+    rm -f /tmp/bridge.deb && \
+    rm -rf /var/lib/apt/lists/*
 
 EXPOSE 1143 1025
 
