@@ -1,0 +1,54 @@
+{{template "layout" .}}
+
+{{define "content"}}
+<a class="back" href="/">&larr; Back</a>
+<h1>{{.Name}}'s Setup Instructions</h1>
+
+<div class="card">
+    <p style="margin-bottom:1rem;">Configure your apps with these endpoints:</p>
+
+    <div class="endpoint-label">Calendar (CalDAV)</div>
+    <div class="endpoint">https://{{.Domain}}/users/{{.Name}}/caldav/</div>
+
+    <div class="endpoint-label">Files (WebDAV)</div>
+    <div class="endpoint">https://{{.Domain}}/users/{{.Name}}/webdav/</div>
+
+    <div class="endpoint-label">Contacts (CardDAV) &mdash; experimental</div>
+    <div class="endpoint">https://{{.Domain}}/users/{{.Name}}/carddav/</div>
+
+    <div class="endpoint-label">Mail (IMAP / SMTP)</div>
+    <div class="endpoint">IMAP: {{.Domain}}:993 &nbsp;&bull;&nbsp; SMTP: {{.Domain}}:465</div>
+</div>
+
+<div class="card">
+    <h2 style="margin-bottom:0.75rem; font-size:1rem;">Quick Setup Guides</h2>
+
+    <p style="margin-bottom:0.5rem; font-size:0.85rem;"><strong>iOS / macOS</strong></p>
+    <p style="font-size:0.8rem; color:#aaa; margin-bottom:0.75rem;">
+        Settings &rarr; Calendar &rarr; Add Account &rarr; Other &rarr;
+        CalDAV &rarr; Server: <code>{{.Domain}}</code>
+    </p>
+
+    <p style="margin-bottom:0.5rem; font-size:0.85rem;"><strong>Thunderbird</strong></p>
+    <p style="font-size:0.8rem; color:#aaa; margin-bottom:0.75rem;">
+        New Calendar &rarr; Network &rarr; CalDAV &rarr;
+        <code>https://{{.Domain}}/users/{{.Name}}/caldav/</code>
+    </p>
+
+    <p style="margin-bottom:0.5rem; font-size:0.85rem;"><strong>DAVx5 (Android)</strong></p>
+    <p style="font-size:0.8rem; color:#aaa; margin-bottom:0.75rem;">
+        Base URL: <code>https://{{.Domain}}/users/{{.Name}}/caldav/</code>
+    </p>
+
+    <p style="margin-bottom:0.5rem; font-size:0.85rem;"><strong>Windows (WebDAV drive)</strong></p>
+    <p style="font-size:0.8rem; color:#aaa; margin-bottom:0.75rem;">
+        Map Network Drive &rarr; <code>https://{{.Domain}}/users/{{.Name}}/webdav/</code>
+    </p>
+
+    <p style="margin-bottom:0.5rem; font-size:0.85rem;"><strong>GNOME / Nautilus</strong></p>
+    <p style="font-size:0.8rem; color:#aaa;">
+        Files &rarr; Other Locations &rarr; Connect to Server &rarr;
+        <code>davs://{{.Domain}}/users/{{.Name}}/webdav/</code>
+    </p>
+</div>
+{{end}}

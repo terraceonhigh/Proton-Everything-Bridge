@@ -1,0 +1,53 @@
+{{template "layout" .}}
+
+{{define "content"}}
+<a class="back" href="/">&larr; Back</a>
+<h1>{{.Name}}'s Bridge Login</h1>
+
+<div class="card">
+    <p style="margin-bottom:1.25rem;">
+        Run these commands on the server to authenticate
+        <strong>{{.Name}}</strong>'s Proton account with each bridge.
+    </p>
+
+    <p class="step"><span class="step-num">1</span> Mail Bridge</p>
+    <div class="cmd">docker compose -p user-{{.Name}} \
+  -f docker-compose.user.yml \
+  exec proton-mail-bridge \
+  protonmail-bridge --cli
+
+&gt; login
+&gt; (enter Proton credentials)
+&gt; info   (note the bridge password)
+&gt; exit</div>
+
+    <p class="step"><span class="step-num">2</span> Calendar Bridge</p>
+    <div class="cmd">docker compose -p user-{{.Name}} \
+  -f docker-compose.user.yml \
+  exec proton-calendar-bridge \
+  proton-calendar-bridge --login</div>
+
+    <p class="step"><span class="step-num">3</span> Drive (rclone)</p>
+    <div class="cmd">docker compose -p user-{{.Name}} \
+  -f docker-compose.user.yml \
+  exec rclone-webdav rclone config
+
+&gt; n      (new remote)
+&gt; proton (name it 'proton')
+&gt; protondrive (type)
+&gt; (follow prompts for Proton login)</div>
+
+    <p class="step"><span class="step-num">4</span> Contacts (experimental)</p>
+    <div class="cmd">docker compose -p user-{{.Name}} \
+  -f docker-compose.user.yml \
+  exec hydroxide \
+  hydroxide auth {{.Name}}@proton.me</div>
+</div>
+
+<div class="card" style="border-color:#8b5cf6;">
+    <p style="font-size:0.85rem;">
+        After completing bridge login, the service status indicators on the
+        main page will turn green as each bridge connects to Proton.
+    </p>
+</div>
+{{end}}
