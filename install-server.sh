@@ -318,6 +318,10 @@ AUTH_HASH=$AUTH_HASH_ESCAPED
 ENVEOF
 ok ".env file written"
 
+# ── Create shared network (both compose files reference it as external) ───
+docker network create proton-shared 2>/dev/null || true
+ok "Shared network ready"
+
 # ── Build and start ───────────────────────────────────────────────────────
 info "Building containers (this may take a few minutes on first run)..."
 docker compose -f "$COMPOSE_FILE" build 2>&1 | sed 's/^/    /'

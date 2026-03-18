@@ -52,5 +52,4 @@ volumes:
 
 networks:
   proton-shared:
-    name: proton-shared
-    driver: bridge
+    external: true
