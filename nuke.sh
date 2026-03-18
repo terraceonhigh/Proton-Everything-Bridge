@@ -6,27 +6,32 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-echo "=== Stopping user stacks ==="
+echo "=== Stopping everything ==="
+docker compose down -v --remove-orphans 2>/dev/null || true
+
+# Also clean up old server-mode stacks if they exist
 for project in $(docker compose ls -q 2>/dev/null | grep '^user-'); do
-    echo "  Removing $project ..."
+    echo "  Removing old user stack: $project ..."
     docker compose -p "$project" -f docker-compose.user.yml down -v --remove-orphans 2>/dev/null || true
 done
-
-echo "=== Stopping shared infrastructure ==="
 docker compose -f docker-compose.caddy.yml down -v --remove-orphans 2>/dev/null || true
+docker network rm proton-shared 2>/dev/null || true
 
 echo "=== Removing stale containers ==="
 docker ps -a --filter "label=com.docker.compose.project" --format '{{.Names}}' \
     | grep -E '^(user-|proton-)' \
     | xargs -r docker rm -f 2>/dev/null || true
 
-echo "=== Removing proton-shared network ==="
-docker network rm proton-shared 2>/dev/null || true
-
-echo "=== Everything nuked. Rebuilding fresh... ==="
-docker network create proton-shared 2>/dev/null || true
-docker compose -f docker-compose.caddy.yml build --no-cache
-docker compose -f docker-compose.caddy.yml up -d
+echo "=== Rebuilding fresh ==="
+docker compose build --no-cache
+docker compose up -d
 
 echo ""
-echo "=== Done. Server is running fresh. ==="
+echo "=== Done. Services running on localhost: ==="
+echo "  IMAP   127.0.0.1:1143"
+echo "  SMTP   127.0.0.1:1025"
+echo "  CalDAV 127.0.0.1:9842"
+echo "  WebDAV 127.0.0.1:9844"
+echo ""
+echo "For CardDAV (experimental):"
+echo "  docker compose --profile carddav up -d"
