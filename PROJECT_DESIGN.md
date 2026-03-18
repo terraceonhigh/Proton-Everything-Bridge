@@ -1,16 +1,18 @@
-# Project Design: Proton Services via Open Standards
+# Project Design: Proton Everything Bridge
 
 ## Vision
 
-Make Proton services (Mail, Calendar, Drive) work with any app by
-translating them into open standards: CalDAV, WebDAV, IMAP/SMTP.
+A unified desktop app that behaves like Proton Mail Bridge but exposes *all*
+Proton services through open standard protocols: IMAP, SMTP, CalDAV, CardDAV,
+and WebDAV. One app, one login, all of Proton in your native apps.
 
-## Core Philosophy
+## Design Philosophy
 
 ### Maximum Recycling
 
-Wrap battle-tested bridges — don't build new ones. If a task requires
->100 lines of original code, find an existing tool to wrap.
+Wrap battle-tested bridges — don't build new ones. hydroxide provides
+IMAP/SMTP/CardDAV, proton-calendar-bridge provides CalDAV, rclone provides
+WebDAV. Our code is orchestration glue.
 
 ### No New Crypto
 
@@ -22,54 +24,124 @@ all cryptographic operations. Our code only speaks standard protocols.
 Every service is exposed via its RFC-defined protocol. No proprietary APIs
 leak to clients.
 
+### Progressive Enhancement
+
+Four modes of operation, each more integrated than the last, each working
+independently. The bash script is the "it always works" fallback.
+
 ## Component Map
 
-| Service | Protocol | RFC | Bridge | Notes |
-|---------|----------|-----|--------|-------|
-| Mail | IMAP/SMTP | RFC 3501/5321 | proton-mail-bridge | Official Proton tool |
-| Calendar | CalDAV | RFC 4791 | proton-calendar-bridge | Community fork |
-| Contacts | CardDAV | RFC 6352 | hydroxide | Unofficial, experimental |
-| Files | WebDAV | RFC 4918 | rclone serve webdav | Official rclone backend |
+| Service | Protocol | RFC | Backend | Integration |
+|---------|----------|-----|---------|-------------|
+| Mail (in) | IMAP | 3501 | hydroxide | Embedded (Go library) |
+| Mail (out) | SMTP | 5321 | hydroxide | Embedded (Go library) |
+| Contacts | CardDAV | 6352 | hydroxide | Embedded (Go library) |
+| Calendar | CalDAV | 4791 | proton-calendar-bridge | Child process |
+| Files | WebDAV | 4918 | rclone serve webdav | Child process |
 
-## Desktop Architecture (GNOME)
+## Architecture
 
-The GNOME plugin registers Proton services as a GOA (GNOME Online Accounts)
-provider. Three providers, each wrapping a localhost bridge:
+### Why Hydroxide Over Proton Mail Bridge
 
-| Provider | Template recycled from | Bridge |
-|----------|----------------------|--------|
-| Proton Mail | GoaImapSmtpProvider | proton-mail-bridge |
-| Proton Drive | GoaOwncloudProvider | rclone FUSE mount |
-| Proton Calendar | GoaCalDavProvider | proton-calendar-bridge |
+The official Proton Mail Bridge is a C/C++/Go hybrid with a Qt GUI. It only
+provides IMAP and SMTP. It cannot be embedded as a library.
 
-Each provider:
-- Checks for its bridge binary at startup
-- Hard-codes `127.0.0.1` as the server address
-- Registers the appropriate GNOME interface (Mail, Files, Calendar)
+Hydroxide is pure Go, MIT-licensed, and provides IMAP + SMTP + CardDAV with
+clean exported packages. It can be imported directly into our Go binary and
+run in-process. This eliminates C/C++ build complexity and adds CardDAV
+(contacts) support that the official bridge doesn't offer.
 
-### Structure
+### Embedded vs Child Process
+
+**Hydroxide (embedded):** Imported as a Go library via `replace` directive.
+The `internal/supervisor/embedded.go` re-implements the ~90 lines of server
+setup from `hydroxide/cmd/hydroxide/main.go` using exported packages:
+- `hydroxide/imap` — returns an `imap.Backend` interface
+- `hydroxide/smtp` — returns an `smtp.Backend` interface
+- `hydroxide/carddav` — returns an `http.Handler`
+- `hydroxide/auth` — manages encrypted credential store
+- `hydroxide/events` — manages event streaming
+
+**Calendar bridge (child process):** All code is under Go's `internal/`
+directory, making it impossible to import from external modules. Must run as
+a separate binary, configured via `PCB_*` environment variables.
+
+**rclone (child process):** The WebDAV serve constructor (`newWebDAV`) is
+unexported. `rclone serve webdav proton:` is the most reliable path. rclone
+is expected to be installed on the system.
+
+### Auth Architecture
+
+Three backends, three different credential stores:
+
+| Backend | API Library | Credential Store |
+|---------|------------|------------------|
+| Hydroxide | `emersion/go-proton` (v3 API) | `auth.json` (NaCl SecretBox) |
+| Calendar bridge | `ProtonMail/go-proton-api` (v4 API) | AES-256-GCM + Argon2id |
+| rclone | `rclone/go-proton-api` (fork) | `rclone.conf` (INI, obscured) |
+
+**Mode 1-2:** Each service authenticates independently.
+
+**Mode 3 (unified auth):** The `internal/auth/unified.go` orchestrator takes
+username + password + TOTP once and provisions all three credential stores:
+1. Hydroxide: calls exported `auth.GeneratePassword()` + `auth.EncryptAndSave()`
+2. Calendar: duplicates the AES-GCM store format (or shells out to `--login`)
+3. rclone: writes `rclone.conf` section via `rclone obscure`
+
+Since hydroxide uses the legacy v3 API and the calendar bridge uses v4,
+unified auth authenticates twice using the same credentials.
+
+### Supervisor Design
+
+The `internal/supervisor/` package manages service lifecycle:
 
 ```
-desktop/
-├── src/goabackend/              # GOA provider C source
-├── data/                        # systemd user services
-├── packaging/                   # Distro packaging (Arch, Debian, Fedora, openSUSE)
-├── meson.build                  # Build system
-└── install.sh                   # Desktop installer
+Supervisor
+├── HydroxideService (embedded)
+│   ├── IMAP server goroutine
+│   ├── SMTP server goroutine
+│   └── CardDAV server goroutine
+├── ProcessService: "Calendar Bridge"
+│   └── proton-calendar-bridge binary
+└── ProcessService: "rclone WebDAV"
+    └── rclone serve webdav proton:
 ```
 
-See [MASTER_BUILD_PLAN.md](desktop/MASTER_BUILD_PLAN.md) for implementation details.
+- `Service` interface: `Start(ctx)`, `Stop(ctx)`, `Info()`, `Healthy(ctx)`
+- Health checking via TCP port probes (every 5s by default)
+- Graceful shutdown in reverse start order
+- Errors are logged but don't stop other services
 
-## Operational Constraints
+### GUI Design (Mode 4, planned)
 
-1. **Maximum Recycling**: Wrap, don't write. CLI tools over libraries.
-2. **No New Crypto**: Bridges own all encryption and auth.
-3. **GObject Standards**: Follow GNOME C coding style for the desktop plugin.
+Wails v2 with a Svelte frontend. The Go backend exposes methods via
+auto-generated TypeScript bindings:
+
+- `GetServices() []ServiceInfo` — polled by frontend every 1s
+- `Login(username, password, totp)` — unified auth
+- `RestartService(name)` — individual service control
+
+The frontend renders service cards styled to match Proton Mail Bridge's dark
+theme (#1C1B22 background, #6D4AFF accent purple). Each card shows hostname,
+port, credentials with copy-to-clipboard buttons.
 
 ## Risks and Mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| hydroxide uses unofficial Proton API | Marked experimental; documented as optional |
-| proton-mail-bridge requires interactive login | Documented in README |
-| Bridge credential format changes | Version-guard parsing; fall back to prompts |
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| Hydroxide IMAP is experimental | Medium | Known RFC gaps (non-unique UIDs). Works for Thunderbird/mutt. Can swap back to official bridge if needed. |
+| Hydroxide uses unofficial Proton API | Medium | Actively maintained (v0.2.31, Jan 2026). MIT licensed. |
+| Calendar bridge uses undocumented Proton API endpoints for writes | High | Write path calls `/calendar/v1/{calID}/events` directly. Could break on Proton API changes. |
+| Three different auth stores | Low | Unified auth provisions all three. Falls back to separate login per service. |
+| rclone not installed on user's system | Low | Mode 2 TUI shows "rclone not found" error for WebDAV; other services still work. |
+
+## Evolution History
+
+1. **v1 — Docker stack**: All bridges in containers behind a unified API server.
+   Abandoned — too complex for a desktop app.
+2. **v2 — Submodules + GNOME plugin**: Three bridge repos as git submodules.
+   GNOME Online Accounts plugin in C for Linux desktop integration. Manual
+   build/run instructions.
+3. **v3 — Hydroxide pivot (current)**: Replaced proton-mail-bridge with
+   hydroxide for pure Go embeddability and added CardDAV. Four-mode progressive
+   architecture. Go process supervisor. TUI dashboard with bubbletea.
