@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# nuke.sh — Tear down ALL Proton bridge services, volumes, and networks.
+# nuke.sh — Tear down ALL Proton bridge services, volumes, and networks,
+#            then rebuild and restart everything fresh.
 # Usage: ./nuke.sh
 set -euo pipefail
 
@@ -22,8 +23,9 @@ docker ps -a --filter "label=com.docker.compose.project" --format '{{.Names}}' \
 echo "=== Removing proton-shared network ==="
 docker network rm proton-shared 2>/dev/null || true
 
-echo "=== Done. Everything nuked. ==="
+echo "=== Everything nuked. Rebuilding fresh... ==="
+docker network create proton-shared 2>/dev/null || true
+docker compose -f docker-compose.caddy.yml up -d --build
+
 echo ""
-echo "To start fresh:"
-echo "  docker network create proton-shared"
-echo "  docker compose -f docker-compose.caddy.yml up -d --build"
+echo "=== Done. Server is running fresh. ==="
