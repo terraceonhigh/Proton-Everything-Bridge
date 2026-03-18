@@ -5,45 +5,50 @@
 #   AUTH_USER       — Basic auth username
 #   AUTH_HASH       — Basic auth bcrypt password hash
 #   ALLOWED_RANGES  — IP/CIDR ranges permitted to connect
-#   ENABLE_CARDDAV  — "true" to enable experimental CardDAV
+#
+# Per-user service routes (e.g. /users/alice/caldav/) are added
+# dynamically via Caddy's admin API by the dashboard container.
+
+{
+	# Enable admin API for dynamic route management by the dashboard.
+	# Only accessible on the internal Docker network (not exposed to host).
+	admin 0.0.0.0:2019
+}
 
 {$DOMAIN:localhost} {
 
 	# ── Access Control ──────────────────────────────────────────────
 	# Restrict by source IP based on ACCESS_MODE (localhost/lan/whitelist/internet).
-	# ALLOWED_RANGES is computed by install-server.sh and written to .env.
-	# When ACCESS_MODE=internet, ALLOWED_RANGES is set to 0.0.0.0/0 (no restriction).
 	@denied not remote_ip {$ALLOWED_RANGES:127.0.0.1/32}
 	respond @denied "Access denied" 403
 
 	# ── Authentication ──────────────────────────────────────────────
 	# Always required, regardless of access mode.
-	# Credentials are set during install-server.sh setup.
 	basicauth * {
 		{$AUTH_USER} {$AUTH_HASH}
 	}
 
-	# ── Service Discovery (RFC 6764) ────────────────────────────────
-	# Clients (iOS, macOS, Thunderbird, DAVx5) use these to auto-configure.
-	redir /.well-known/caldav /caldav/ 301
-	redir /.well-known/carddav /carddav/ 301
-
-	# ── CalDAV — Calendar (proton-calendar-bridge :9842) ────────────
-	handle_path /caldav/* {
-		reverse_proxy proton-calendar-bridge:9842
+	# ── Dashboard (bridge-style web panel) ──────────────────────────
+	# The main UI — account list, setup instructions, bridge login help.
+	handle / {
+		reverse_proxy dashboard:8080
+	}
+	handle /accounts* {
+		reverse_proxy dashboard:8080
+	}
+	handle /static/* {
+		reverse_proxy dashboard:8080
 	}
 
-	# ── CardDAV — Contacts (hydroxide :8080, experimental) ──────────
-	handle_path /carddav/* {
-		reverse_proxy hydroxide:8080
-	}
+	# ── Per-user routes are added dynamically ───────────────────────
+	# The dashboard calls Caddy's admin API to add routes like:
+	#   /users/alice/caldav/*  → user-alice-proton-calendar-bridge-1:9842
+	#   /users/alice/webdav/*  → user-alice-rclone-webdav-1:9844
+	#   /users/alice/carddav/* → user-alice-hydroxide-1:8080
+	#
+	# These are injected at runtime — no restart needed.
 
-	# ── WebDAV — Files/Drive (rclone :9844) ─────────────────────────
-	handle_path /webdav/* {
-		reverse_proxy rclone-webdav:9844
-	}
-
-	# ── Status endpoint (no auth, for health checks) ────────────────
+	# ── Health endpoint (no auth required) ──────────────────────────
 	handle /health {
 		respond "ok" 200
 	}
