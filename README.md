@@ -1,86 +1,160 @@
 # Proton on GNOME Online Accounts
 
-Integrates **Proton Mail**, **Proton Drive**, and **Proton Calendar** into
-GNOME Online Accounts — providing the same seamless experience as Google or
-Microsoft 365 accounts in GNOME.
+Makes your **Proton Mail**, **Proton Drive**, **Proton Calendar**, and
+**Proton Contacts** work with standard apps — on any device, any OS.
+
+Two modes of operation:
+
+| Mode | What it does | Who it's for |
+|------|-------------|--------------|
+| **Server** | Docker service exposing Proton via CalDAV, CardDAV, WebDAV, IMAP/SMTP | Anyone — works with iOS, Android, Windows, macOS, Linux |
+| **Desktop** | GNOME Online Accounts plugin for direct desktop integration | GNOME desktop users |
 
 ---
 
-## Install
+## Server Mode (Recommended)
 
-> Works on **Fedora**, **Ubuntu** (22.04+), and **openSUSE** (Tumbleweed / Leap 15.5+)
-> with the GNOME desktop.
+Runs a self-hosted server that translates your Proton account into open
+standards. Works like Proton Mail Bridge — but for everything.
 
-Open a terminal and run:
+**Supports multiple Proton accounts** on one server. Each user gets isolated
+bridge containers and their own endpoints.
+
+### Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/terraceonhigh/Proton-on-Gnome-Online-Accounts/main/install.sh | bash
+cd server
+bash install-server.sh
 ```
 
-That's it. The installer handles everything automatically — build tools,
-the GOA plugin, Proton Mail Bridge, rclone, and systemd services.
+The installer sets up Docker, configures access control (localhost, LAN, or
+internet), and starts the server. When it finishes:
 
-When it finishes, open **GNOME Settings** → **Online Accounts** → **Proton**
-to add your account.
+1. Open **https://your-domain/** in your browser
+2. Click **[+ Add Account]**
+3. Follow the bridge login instructions
+4. Copy the endpoint URLs into your apps
 
-> **Tip:** If you prefer to inspect the script first, you can also clone and run it directly:
-> ```bash
-> git clone --recurse-submodules https://github.com/terraceonhigh/Proton-on-Gnome-Online-Accounts.git
-> cd Proton-on-Gnome-Online-Accounts
-> bash install.sh
-> ```
+### What you get
 
-### After install
+| Service | Protocol | Endpoint |
+|---------|----------|----------|
+| Calendar | CalDAV | `https://server/users/{name}/caldav/` |
+| Contacts | CardDAV | `https://server/users/{name}/carddav/` |
+| Files | WebDAV | `https://server/users/{name}/webdav/` |
+| Mail | IMAP | `server:993` |
+| Mail | SMTP | `server:465` |
 
-| Where | What appears |
-|---|---|
-| Evolution / Geary (mail app) | Proton Mail inbox |
-| Files / Nautilus sidebar | Proton Drive folder |
+### Client setup
+
+| Client | How to connect |
+|--------|---------------|
+| **iOS / macOS** | Settings → Calendar → Add Account → Other → CalDAV |
+| **Thunderbird** | New Calendar → Network → CalDAV → enter URL |
+| **DAVx5** (Android) | Base URL → enter CalDAV/CardDAV URL |
+| **Windows** | Map Network Drive → enter WebDAV URL |
+| **GNOME / Nautilus** | Other Locations → Connect to Server → `davs://...` |
+
+### Access control
+
+The server supports four access modes, configured during install:
+
+| Mode | Who can connect |
+|------|-----------------|
+| `localhost` | Only the server machine (default) |
+| `lan` | Devices on your local network |
+| `whitelist` | Specific IPs you choose |
+| `internet` | Anyone (requires a domain for TLS) |
+
+Authentication is always required regardless of access mode.
+
+### Server commands
+
+```bash
+bash install-server.sh --status     # Check what's running
+bash install-server.sh --uninstall  # Stop and remove everything
+
+# Logs
+docker compose -f docker-compose.caddy.yml logs -f
+```
+
+---
+
+## Desktop Mode (GNOME)
+
+A GOA (GNOME Online Accounts) plugin that registers Proton services directly
+with GNOME desktop apps.
+
+> Works on **Fedora**, **Ubuntu** (22.04+), **openSUSE**, and **Arch Linux**.
+
+### Install
+
+```bash
+bash install.sh
+```
+
+Then open **GNOME Settings → Online Accounts → Proton** to add your account.
+
+### What appears
+
+| App | What you see |
+|-----|-------------|
+| Evolution / Geary | Proton Mail inbox |
+| Files / Nautilus | Proton Drive folder |
 | GNOME Calendar | Proton Calendar events |
 
-### Something went wrong?
+### Desktop commands
 
 ```bash
-bash install.sh --status
-```
-
-Shows which pieces are installed and which are missing. See
-[docs/account-setup-flow.md](docs/account-setup-flow.md#troubleshooting) for
-more detail.
-
-### Uninstall
-
-```bash
-bash install.sh --uninstall
+bash install.sh --status     # Check installed components
+bash install.sh --uninstall  # Remove everything
 ```
 
 ---
 
-## How It Works
+## Architecture
 
-This project is a GOA (GNOME Online Accounts) backend plugin that registers
-three providers:
+Both modes use the same approach: **wrap existing bridges, expose standard
+protocols**.
 
-| Provider        | Feature  | Backend                          |
-|-----------------|----------|----------------------------------|
-| Proton Mail     | Mail     | Proton Mail Bridge (IMAP/SMTP)   |
-| Proton Drive    | Files    | rclone FUSE mount                |
-| Proton Calendar | Calendar | proton-calendar-bridge (CalDAV)  |
+```
+                        Your Apps
+                    (any CalDAV/IMAP client)
+                            |
+                    ┌───────┴────────┐
+                    │  Caddy / GOA   │  ← reverse proxy (server) or
+                    │  (gateway)     │    GNOME registration (desktop)
+                    └───────┬────────┘
+          ┌─────────┬───────┼────────┬──────────┐
+          │         │       │        │          │
+       CalDAV    CardDAV  WebDAV  IMAP/SMTP   │
+       proton-   hydroxide rclone  proton-    │
+       calendar  :8080    serve    mail-      │
+       -bridge            webdav   bridge     │
+       :9842              :9844    :1143/1025  │
+          │         │       │        │          │
+          └─────────┴───────┴────────┴──────────┘
+                            │
+                    Proton API (encrypted)
+```
 
-All providers connect to **localhost bridges** — no new crypto or direct
-Proton API calls. The bridges handle encryption and authentication.
+### Design principles
+
+- **Maximum Recycling**: Wrap existing tools, don't reinvent them
+- **No New Crypto**: Bridges handle all encryption and auth with Proton
+- **Open Standards**: CalDAV, CardDAV, WebDAV, IMAP/SMTP — universal client support
 
 ---
 
 ## For Developers
 
-### Building from source
+### Building the GNOME plugin from source
 
 ```bash
 # Install dependencies (Debian/Ubuntu)
 sudo apt install meson ninja-build pkg-config \
   libgoa-backend-1.0-dev libglib2.0-dev libsecret-1-dev \
-  libsoup-3.0-dev libjson-glib-dev
+  libsoup-3.0-dev libjson-glib-dev libadwaita-1-dev
 
 # Build
 meson setup builddir
@@ -90,25 +164,36 @@ ninja -C builddir
 sudo ninja -C builddir install
 ```
 
-### Packaging
+### Server dashboard development
 
-Pre-built packaging files are available for:
+The server dashboard is a Go + htmx application in `server/dashboard/`.
 
-- **Fedora**: `packaging/fedora/proton-goa.spec`
-- **openSUSE**: `packaging/opensuse/proton-goa.spec`
-- **Debian/Ubuntu**: `packaging/debian/`
-- **Arch Linux**: `packaging/archlinux/PKGBUILD`
+```bash
+cd server/dashboard
+go build -o dashboard .
+```
 
-### Runtime Dependencies
+### Project structure
 
-- **Proton Mail Bridge** — https://proton.me/mail/bridge
-- **rclone** — for Proton Drive (`apt install rclone`)
-- **proton-calendar-bridge** — built from the included submodule
+```
+server/                          # Server mode
+├── docker-compose.caddy.yml     # Shared infrastructure (Caddy + dashboard)
+├── docker-compose.user.yml      # Per-user bridge template
+├── dashboard/                   # Go + htmx web panel
+├── containers/                  # Bridge Dockerfiles
+├── Caddyfile                    # Reverse proxy config
+└── install-server.sh            # Guided installer
+
+src/goabackend/                  # Desktop mode (GNOME plugin)
+data/                            # systemd user services
+install.sh                       # Desktop installer
+```
 
 ## Documentation
 
-See [docs/account-setup-flow.md](docs/account-setup-flow.md) for the
-account setup guide.
+- [Account Setup Flow](docs/account-setup-flow.md) — Detailed setup guide
+- [Project Design](PROJECT_DESIGN.md) — Architecture and design decisions
+- [Build Plan](MASTER_BUILD_PLAN.md) — GNOME plugin implementation details
 
 ## License
 
