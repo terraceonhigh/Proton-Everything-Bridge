@@ -7,3 +7,6 @@
 [submodule "proton-calendar-bridge"]
 	path = proton-calendar-bridge
 	url = https://github.com/terraceonhigh/proton-calendar-bridge
+[submodule "hydroxide"]
+	path = hydroxide
+	url = https://github.com/emersion/hydroxide
