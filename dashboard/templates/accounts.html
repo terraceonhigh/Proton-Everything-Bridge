@@ -16,8 +16,8 @@
         {{end}}
     </div>
     <div class="actions">
-        <a class="btn btn-primary" href="/accounts/{{.Name}}/setup">Setup Instructions</a>
-        <a class="btn btn-secondary" href="/accounts/{{.Name}}/bridge">Bridge Login</a>
+        <a class="btn btn-primary" href="/accounts/{{.Name}}/bridge">Bridge Login</a>
+        <a class="btn btn-secondary" href="/accounts/{{.Name}}/setup">Setup Instructions</a>
         <form method="POST" action="/accounts/{{.Name}}/remove"
               onsubmit="return confirm('Remove {{.Name}} and all their data?')">
             <button type="submit" class="btn btn-danger">Remove</button>
