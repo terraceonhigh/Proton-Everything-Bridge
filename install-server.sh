@@ -344,13 +344,21 @@ ${BOLD}╔═══════════════════════�
   ${BOLD}Username:${NC}    $AUTH_USER
 
   ${BOLD}Next step:${NC}
-    Open ${BOLD}https://$DOMAIN/${NC} in your browser.
-    Click ${BOLD}[+ Add Account]${NC} to add your first Proton account.
+    Add your first Proton account:
 
-    The dashboard will guide you through bridge login and
-    show you the endpoint URLs for your apps.
+      ${BOLD}./manage.sh add <name>${NC}
 
-  ${BOLD}Useful commands:${NC}
+    This will start the bridge containers and walk you through
+    logging in to each Proton service interactively.
+
+  ${BOLD}Account management:${NC}
+    Add account  :  ./manage.sh add <name>
+    Bridge login :  ./manage.sh login <name>
+    Endpoints    :  ./manage.sh endpoints <name>
+    Status       :  ./manage.sh status
+    Remove       :  ./manage.sh remove <name>
+
+  ${BOLD}Infrastructure:${NC}
     Check status :  bash install-server.sh --status
     View logs    :  docker compose -f $COMPOSE_FILE logs -f
     Restart      :  docker compose -f $COMPOSE_FILE restart
