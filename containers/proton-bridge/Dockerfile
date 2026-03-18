@@ -23,7 +23,7 @@ RUN git clone --depth 1 https://github.com/SevenOfNine-Labs/proton-calendar-brid
 RUN go build -o /proton-calendar-bridge ./cmd/proton-calendar-bridge/...
 
 # ── Build hydroxide from source ──
-FROM golang:1.22-alpine AS hydroxide-builder
+FROM golang:1.24-alpine AS hydroxide-builder
 
 RUN apk add --no-cache git
 
