@@ -94,7 +94,7 @@ func (h *Handlers) Accounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("account %s created", name)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, "/accounts/"+name+"/bridge", http.StatusSeeOther)
 }
 
 // AccountAction routes /accounts/{name}/{action} requests.
