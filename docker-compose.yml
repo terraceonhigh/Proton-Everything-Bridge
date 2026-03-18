@@ -1,129 +1,115 @@
-# Proton DAV Server — Docker Compose
+# Proton Bridge Stack — Laptop Edition
 #
-# Exposes Proton services via open standards:
-#   CalDAV  (calendar)  — proton-calendar-bridge
-#   CardDAV (contacts)  — hydroxide (experimental)
-#   WebDAV  (files)     — rclone serve webdav
-#   IMAP/SMTP (mail)    — proton-mail-bridge
-#
-# All bridges run on an internal network. Only Caddy is exposed to the host,
-# enforcing TLS, authentication, and access control.
+# Lightweight orchestration of Proton bridge services.
+# All ports bound to localhost only. No reverse proxy, no TLS, no dashboard.
 #
 # Quick start:
-#   cp .env.example .env
-#   # Edit .env with your domain, credentials, and access mode
 #   docker compose up -d
+#
+# First-time setup for each service:
+#   Mail:     docker compose exec proton-mail-bridge protonmail-bridge --cli
+#   Drive:    docker compose run --rm rclone-webdav rclone config
+#   Contacts: docker compose exec hydroxide hydroxide auth <username>
 
 services:
-  # ── Reverse Proxy / Gateway ──────────────────────────────────────────────
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "${BIND_ADDRESS:-0.0.0.0}:443:443"
-      - "${BIND_ADDRESS:-0.0.0.0}:80:80"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./access-control.sh:/etc/caddy/access-control.sh:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    environment:
-      - DOMAIN=${DOMAIN:-localhost}
-      - AUTH_USER=${AUTH_USER}
-      - AUTH_HASH=${AUTH_HASH}
-      - ALLOWED_RANGES=${ALLOWED_RANGES:-127.0.0.1/32 ::1/128}
-      - ENABLE_CARDDAV=${ENABLE_CARDDAV:-true}
-    depends_on:
-      proton-mail-bridge:
-        condition: service_started
-      proton-calendar-bridge:
-        condition: service_started
-      rclone-webdav:
-        condition: service_started
-    networks:
-      - proton-internal
-
   # ── IMAP/SMTP — Proton Mail Bridge ──────────────────────────────────────
   proton-mail-bridge:
     build:
       context: ./containers/proton-mail-bridge
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:1143:1143"   # IMAP
+      - "127.0.0.1:1025:1025"   # SMTP
     volumes:
       - mail_bridge_data:/root/.config/protonmail/bridge-v3
       - mail_bridge_cache:/root/.cache/protonmail/bridge-v3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
     healthcheck:
       test: ["CMD", "nc", "-z", "127.0.0.1", "1143"]
-      interval: 30s
+      interval: 60s
       timeout: 5s
       retries: 3
-      start_period: 15s
-    networks:
-      - proton-internal
+      start_period: 30s
 
   # ── CalDAV — Proton Calendar Bridge ─────────────────────────────────────
   proton-calendar-bridge:
     build:
       context: ./containers/proton-calendar-bridge
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:9842:9842"   # CalDAV
     volumes:
       - calendar_bridge_data:/root/.config/proton-calendar-bridge
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
     healthcheck:
       test: ["CMD", "nc", "-z", "127.0.0.1", "9842"]
-      interval: 30s
+      interval: 60s
       timeout: 5s
       retries: 3
       start_period: 10s
-    networks:
-      - proton-internal
 
   # ── WebDAV — rclone serve webdav (Proton Drive) ─────────────────────────
   rclone-webdav:
     image: rclone/rclone:latest
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:9844:9844"   # WebDAV
     command: >
       serve webdav proton:
       --addr 0.0.0.0:9844
-      --vfs-cache-mode full
-      --vfs-cache-max-age 1h
+      --vfs-cache-mode minimal
+      --vfs-cache-max-age 30m
+      --transfers 2
+      --checkers 2
+      --buffer-size 16M
     volumes:
       - rclone_config:/config/rclone
       - rclone_cache:/root/.cache/rclone
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9844/"]
-      interval: 30s
+      interval: 60s
       timeout: 5s
       retries: 3
       start_period: 10s
-    networks:
-      - proton-internal
 
   # ── CardDAV — hydroxide (experimental) ──────────────────────────────────
-  # Uses unofficial Proton API. Can be disabled via ENABLE_CARDDAV=false
+  # Disabled by default. Start with: docker compose --profile carddav up -d
   hydroxide:
     build:
       context: ./containers/hydroxide
     restart: unless-stopped
     profiles:
       - carddav
+    ports:
+      - "127.0.0.1:8080:8080"   # CardDAV
     volumes:
       - hydroxide_data:/root/.config/hydroxide
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
     healthcheck:
       test: ["CMD", "nc", "-z", "127.0.0.1", "8080"]
-      interval: 30s
+      interval: 60s
       timeout: 5s
       retries: 3
       start_period: 10s
-    networks:
-      - proton-internal
-
-networks:
-  proton-internal:
-    driver: bridge
-    internal: true
 
 volumes:
-  caddy_data:
-  caddy_config:
   mail_bridge_data:
   mail_bridge_cache:
   calendar_bridge_data:
