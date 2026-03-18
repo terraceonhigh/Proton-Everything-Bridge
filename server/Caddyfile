@@ -1,0 +1,50 @@
+# Proton DAV Server — Caddy Reverse Proxy Configuration
+#
+# Environment variables (from .env via docker-compose):
+#   DOMAIN          — Your domain name or "localhost"
+#   AUTH_USER       — Basic auth username
+#   AUTH_HASH       — Basic auth bcrypt password hash
+#   ALLOWED_RANGES  — IP/CIDR ranges permitted to connect
+#   ENABLE_CARDDAV  — "true" to enable experimental CardDAV
+
+{$DOMAIN:localhost} {
+
+	# ── Access Control ──────────────────────────────────────────────
+	# Restrict by source IP based on ACCESS_MODE (localhost/lan/whitelist/internet).
+	# ALLOWED_RANGES is computed by install-server.sh and written to .env.
+	# When ACCESS_MODE=internet, ALLOWED_RANGES is set to 0.0.0.0/0 (no restriction).
+	@denied not remote_ip {$ALLOWED_RANGES:127.0.0.1/32}
+	respond @denied "Access denied" 403
+
+	# ── Authentication ──────────────────────────────────────────────
+	# Always required, regardless of access mode.
+	# Credentials are set during install-server.sh setup.
+	basicauth * {
+		{$AUTH_USER} {$AUTH_HASH}
+	}
+
+	# ── Service Discovery (RFC 6764) ────────────────────────────────
+	# Clients (iOS, macOS, Thunderbird, DAVx5) use these to auto-configure.
+	redir /.well-known/caldav /caldav/ 301
+	redir /.well-known/carddav /carddav/ 301
+
+	# ── CalDAV — Calendar (proton-calendar-bridge :9842) ────────────
+	handle_path /caldav/* {
+		reverse_proxy proton-calendar-bridge:9842
+	}
+
+	# ── CardDAV — Contacts (hydroxide :8080, experimental) ──────────
+	handle_path /carddav/* {
+		reverse_proxy hydroxide:8080
+	}
+
+	# ── WebDAV — Files/Drive (rclone :9844) ─────────────────────────
+	handle_path /webdav/* {
+		reverse_proxy rclone-webdav:9844
+	}
+
+	# ── Status endpoint (no auth, for health checks) ────────────────
+	handle /health {
+		respond "ok" 200
+	}
+}
