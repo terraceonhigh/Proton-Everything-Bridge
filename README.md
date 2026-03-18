@@ -24,13 +24,11 @@ bridge containers and their own endpoints.
 
 **Linux / macOS:**
 ```bash
-cd server
 bash install-server.sh
 ```
 
 **Windows** (PowerShell):
 ```powershell
-cd server
 .\install-server.ps1
 ```
 
@@ -101,7 +99,7 @@ with GNOME desktop apps.
 ### Install
 
 ```bash
-bash install.sh
+bash desktop/install.sh
 ```
 
 Then open **GNOME Settings → Online Accounts → Proton** to add your account.
@@ -117,8 +115,8 @@ Then open **GNOME Settings → Online Accounts → Proton** to add your account.
 ### Desktop commands
 
 ```bash
-bash install.sh --status     # Check installed components
-bash install.sh --uninstall  # Remove everything
+bash desktop/install.sh --status     # Check installed components
+bash desktop/install.sh --uninstall  # Remove everything
 ```
 
 ---
@@ -168,6 +166,7 @@ sudo apt install meson ninja-build pkg-config \
   libsoup-3.0-dev libjson-glib-dev libadwaita-1-dev
 
 # Build
+cd desktop
 meson setup builddir
 ninja -C builddir
 
@@ -177,34 +176,36 @@ sudo ninja -C builddir install
 
 ### Server dashboard development
 
-The server dashboard is a Go + htmx application in `server/dashboard/`.
+The server dashboard is a Go + htmx application in `dashboard/`.
 
 ```bash
-cd server/dashboard
+cd dashboard
 go build -o dashboard .
 ```
 
 ### Project structure
 
 ```
-server/                          # Server mode
-├── docker-compose.caddy.yml     # Shared infrastructure (Caddy + dashboard)
-├── docker-compose.user.yml      # Per-user bridge template
-├── dashboard/                   # Go + htmx web panel
-├── containers/                  # Bridge Dockerfiles
-├── Caddyfile                    # Reverse proxy config
-└── install-server.sh            # Guided installer
+docker-compose.caddy.yml         # Server: shared infrastructure (Caddy + dashboard)
+docker-compose.user.yml          # Server: per-user bridge template
+dashboard/                       # Server: Go + htmx web panel
+containers/                      # Server: bridge Dockerfiles
+Caddyfile                        # Server: reverse proxy config
+install-server.sh                # Server: guided installer
 
-src/goabackend/                  # Desktop mode (GNOME plugin)
-data/                            # systemd user services
-install.sh                       # Desktop installer
+desktop/                         # Desktop mode (GNOME plugin)
+├── src/goabackend/              # GOA provider C source
+├── data/                        # systemd user services
+├── packaging/                   # Distro packaging (Arch, Debian, Fedora, openSUSE)
+├── meson.build                  # Build system
+└── install.sh                   # Desktop installer
 ```
 
 ## Documentation
 
 - [Account Setup Flow](docs/account-setup-flow.md) — Detailed setup guide
 - [Project Design](PROJECT_DESIGN.md) — Architecture and design decisions
-- [Build Plan](MASTER_BUILD_PLAN.md) — GNOME plugin implementation details
+- [Build Plan](desktop/MASTER_BUILD_PLAN.md) — GNOME plugin implementation details
 
 ## License
 

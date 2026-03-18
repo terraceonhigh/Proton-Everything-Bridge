@@ -6,13 +6,11 @@
 
 **Linux / macOS:**
 ```bash
-cd server
 bash install-server.sh
 ```
 
 **Windows** (PowerShell):
 ```powershell
-cd server
 .\install-server.ps1
 ```
 

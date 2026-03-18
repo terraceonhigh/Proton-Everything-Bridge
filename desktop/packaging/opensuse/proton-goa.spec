@@ -39,10 +39,12 @@ the Proton Mail Bridge, Proton Drive Bridge, and Proton Calendar Bridge.
 %autosetup -n %{_name}-%{version}
 
 %build
+cd desktop
 %meson
 %meson_build
 
 %install
+cd desktop
 %meson_install
 
 %post

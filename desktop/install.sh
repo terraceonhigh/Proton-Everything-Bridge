@@ -13,7 +13,7 @@
 #   bash install.sh --uninstall  — remove everything this script installed
 #
 # Can also be run via:
-#   curl -fsSL https://raw.githubusercontent.com/terraceonhigh/Proton-on-Gnome-Online-Accounts/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/terraceonhigh/Proton-on-Gnome-Online-Accounts/main/desktop/install.sh | bash
 
 set -euo pipefail
 

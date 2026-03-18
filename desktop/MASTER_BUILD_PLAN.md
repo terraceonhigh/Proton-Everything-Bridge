@@ -1,7 +1,7 @@
 # GNOME Plugin Build Plan
 
 This document covers the **desktop mode** — the GNOME Online Accounts plugin.
-For the server architecture, see [PROJECT_DESIGN.md](PROJECT_DESIGN.md).
+For the server architecture, see [PROJECT_DESIGN.md](../PROJECT_DESIGN.md).
 
 ## Overview
 

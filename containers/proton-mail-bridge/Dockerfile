@@ -1,7 +1,7 @@
 # Proton Mail Bridge container
 #
 # Provides IMAP on :1143 and SMTP on :1025
-# Recycled from: data/protonmail-bridge.service
+# Recycled from: desktop/data/protonmail-bridge.service
 #
 # IMPORTANT: After first start, you must log in interactively:
 #   docker compose exec proton-mail-bridge protonmail-bridge --cli

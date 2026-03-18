@@ -104,24 +104,22 @@ Four tiers, configured during install:
 ### Infrastructure
 
 ```
-server/
-├── docker-compose.caddy.yml     # Shared: Caddy + dashboard
-├── docker-compose.user.yml      # Per-user: 4 bridge containers
-├── docker-compose.yml           # Legacy single-user (preserved)
-├── Caddyfile                    # Reverse proxy + access control
-├── dashboard/                   # Go + htmx web panel
-│   ├── main.go                  # Server + route reconciliation
-│   ├── handlers.go              # HTTP handlers
-│   ├── docker.go                # Docker Compose CLI wrapper
-│   ├── caddy.go                 # Caddy admin API client
-│   └── templates/               # HTML templates (htmx)
-├── containers/                  # Bridge Dockerfiles
-│   ├── proton-mail-bridge/
-│   ├── proton-calendar-bridge/
-│   ├── rclone-webdav/
-│   └── hydroxide/
-└── install-server.sh            # Guided installer
-
+docker-compose.caddy.yml         # Shared: Caddy + dashboard
+docker-compose.user.yml          # Per-user: 4 bridge containers
+docker-compose.yml               # Legacy single-user (preserved)
+Caddyfile                        # Reverse proxy + access control
+dashboard/                       # Go + htmx web panel
+├── main.go                      # Server + route reconciliation
+├── handlers.go                  # HTTP handlers
+├── docker.go                    # Docker Compose CLI wrapper
+├── caddy.go                     # Caddy admin API client
+└── templates/                   # HTML templates (htmx)
+containers/                      # Bridge Dockerfiles
+├── proton-mail-bridge/
+├── proton-calendar-bridge/
+├── rclone-webdav/
+└── hydroxide/
+install-server.sh                # Guided installer
 ```
 
 ## Desktop Architecture (GNOME)
@@ -140,7 +138,7 @@ Each provider:
 - Hard-codes `127.0.0.1` as the server address
 - Registers the appropriate GNOME interface (Mail, Files, Calendar)
 
-See [MASTER_BUILD_PLAN.md](MASTER_BUILD_PLAN.md) for implementation details.
+See [MASTER_BUILD_PLAN.md](desktop/MASTER_BUILD_PLAN.md) for implementation details.
 
 ## Operational Constraints
 
