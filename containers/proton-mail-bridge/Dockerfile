@@ -1,10 +1,10 @@
-# Proton Mail Bridge container (pre-built)
+# Proton Mail Bridge container
 #
 # Provides IMAP on :1143 and SMTP on :1025
 # Recycled from: desktop/data/protonmail-bridge.service
 #
-# Uses the official .deb package from Proton instead of compiling from source.
-# This cuts build time from ~10 minutes to ~30 seconds.
+# Builds from source because Proton only publishes amd64 .deb packages.
+# The build is pinned to a release tag for reproducibility.
 #
 # IMPORTANT: After first start, you must log in interactively:
 #   docker compose exec proton-mail-bridge protonmail-bridge --cli
@@ -13,15 +13,30 @@
 #   > info
 #   > (note the bridge password for your email client)
 
-FROM ubuntu:24.04
+# ── Build stage ──
+FROM golang:1.24-bookworm AS builder
 
-ARG BRIDGE_VERSION=3.16.0-1
-ARG TARGETARCH
+ARG BRIDGE_TAG=v3.22.0
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git make gcc pkg-config \
+        libsecret-1-dev libfido2-dev libcbor-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+RUN git clone --depth 1 --branch "${BRIDGE_TAG}" \
+      https://github.com/ProtonMail/proton-bridge.git .
+
+RUN make build-nogui
+
+# ── Runtime ──
+FROM ubuntu:24.04
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
-        curl \
         netcat-openbsd \
         gnome-keyring \
         libsecret-1-0 \
@@ -29,15 +44,7 @@ RUN apt-get update && \
         dbus-x11 && \
     rm -rf /var/lib/apt/lists/*
 
-# Download and install the official .deb package from Proton's repo.
-# Architecture is mapped: amd64 stays amd64, arm64 stays arm64.
-RUN curl -fsSL \
-      "https://proton.me/download/bridge/protonmail-bridge_${BRIDGE_VERSION}_${TARGETARCH}.deb" \
-      -o /tmp/bridge.deb && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends /tmp/bridge.deb && \
-    rm -f /tmp/bridge.deb && \
-    rm -rf /var/lib/apt/lists/*
+COPY --from=builder /build/bridge /usr/local/bin/protonmail-bridge
 
 EXPOSE 1143 1025
 
