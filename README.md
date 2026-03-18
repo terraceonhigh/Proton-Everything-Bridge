@@ -1,4 +1,4 @@
-# Proton on GNOME Online Accounts
+# Proton Everything* Birdge
 
 Makes your **Proton Mail**, **Proton Drive**, **Proton Calendar**, and
 **Proton Contacts** work with standard apps — on any device, any OS.
