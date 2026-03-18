@@ -16,7 +16,7 @@ FROM golang:1.24-bookworm AS builder
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         git make gcc pkg-config \
-        libsecret-1-dev libfido2-dev && \
+        libsecret-1-dev libfido2-dev libcbor-dev && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
