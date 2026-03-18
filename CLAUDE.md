@@ -3,73 +3,83 @@
 ## Project Overview
 
 This repo provides open-standard bridges for Proton services (Mail, Calendar,
-Drive) plus a GNOME Online Accounts desktop plugin. The goal is to make Proton
-work with any CalDAV/IMAP/WebDAV client.
+Contacts, Drive) plus a GNOME Online Accounts desktop plugin. The goal is a
+unified "Proton Everything Bridge" app that works like Proton Mail Bridge but
+also exposes CalDAV, CardDAV, and WebDAV alongside IMAP/SMTP.
 
-## Current State (as of last session)
+## Architecture
 
-We stripped all Docker/server infrastructure and went back to basics. The repo
-now contains:
+**Four progressive modes** (each level works independently if higher levels fail):
 
-- **Three bridge submodules** (uninitialized — need `git submodule update --init`):
-  - `proton-mail-bridge/` → fork of official ProtonMail/proton-bridge
-  - `proton-calendar-bridge/` → fork of SevenOfNine-Labs/proton-calendar-bridge
-  - `proton-drive-bridge/` → Go wrapper around rclone's protondrive backend
-- **GNOME desktop plugin** in `desktop/` (GOA providers in C, meson build)
-- **README.md** with manual build/run instructions for each bridge
-- **PROJECT_DESIGN.md** with architecture notes
+1. **Mode 1 — Bash script** (`scripts/start-all.sh`): Starts each service
+   independently. Each handles its own auth. Always works.
+2. **Mode 2 — TUI dashboard** (`cmd/proton-bridge-tui/`): Go binary with
+   bubbletea ASCII dashboard showing service status and credentials. Separate
+   logins per service.
+3. **Mode 3 — Unified auth** (same binary, `--login` flag): Single Proton
+   login provisions all backend credential stores.
+4. **Mode 4 — GUI** (`cmd/proton-everything-bridge/`): Wails v2 + Svelte
+   frontend matching Proton Mail Bridge dark theme. Stub only for now.
 
-## Next Task: Build the bridges natively on Apple Silicon Mac
+**Backend components:**
 
-The user wants all three bridges building and running as native binaries on an
-M-series Mac (arm64). No Docker. No containers. Proton accounts have NOT been
-configured yet — the user will handle authentication themselves after the
-bridges are built.
+| Protocol | Backend | Integration |
+|----------|---------|-------------|
+| IMAP :1143 | hydroxide | Embedded (Go library) |
+| SMTP :1025 | hydroxide | Embedded (Go library) |
+| CardDAV :8080 | hydroxide | Embedded (Go library) |
+| CalDAV :9842 | proton-calendar-bridge | Child process |
+| WebDAV :9844 | rclone serve webdav | Child process |
 
-### What needs to happen
+## Current State
 
-1. **Initialize submodules**: `git submodule update --init --recursive`
+### What exists
 
-2. **proton-mail-bridge** (highest priority):
-   - Fork of official Proton Mail Bridge (C/C++/Go hybrid, uses `make`)
-   - Build command: `make build-nogui`
-   - May need macOS-specific deps (libsecret → Keychain, no libfido2 on mac)
-   - Target: produce a `bridge` binary that runs `--cli` and `--noninteractive`
-   - Ports: IMAP :1143, SMTP :1025
+- **Root Go module** (`go.mod`) with `replace` directive for hydroxide submodule
+- **`scripts/start-all.sh`** — Mode 1 bash launcher (complete)
+- **`internal/config/`** — Unified configuration (ports, paths, preferences)
+- **`internal/supervisor/`** — Service lifecycle management:
+  - `service.go` — Service interface and status types
+  - `health.go` — TCP/HTTP health probes
+  - `embedded.go` — Hydroxide in-process wrapper (IMAP+SMTP+CardDAV)
+  - `process.go` — Child process wrapper (calendar bridge, rclone)
+  - `supervisor.go` — Top-level orchestrator
+- **`internal/tui/`** — bubbletea TUI dashboard with Proton dark theme
+- **`internal/auth/`** — Unified auth provisioning:
+  - `hydroxide.go` — Provisions hydroxide credentials via exported auth package
+  - `calendar.go` — Duplicates calendar bridge's AES-256-GCM store format
+  - `rclone.go` — Writes rclone.conf with obscured password
+  - `unified.go` — Orchestrates single-login across all backends
+- **`cmd/proton-bridge-tui/`** — Mode 2/3 entry point
+- **`cmd/proton-everything-bridge/`** — Mode 4 stub
 
-3. **proton-calendar-bridge** (Go, straightforward):
-   - Requires Go 1.25+
-   - Build: `go build -o proton-calendar-bridge ./cmd/proton-calendar-bridge/...`
-   - First run: `./proton-calendar-bridge --login`
-   - Normal run: `./proton-calendar-bridge` (CalDAV on :9842)
-   - The terraceonhigh fork has: GPL-2.0 headers, logrus logging, golangci config
+### Submodules
 
-4. **proton-drive-bridge** (Go, wraps rclone):
-   - Requires Go 1.22+ and rclone installed at runtime
-   - Build: `go build -o proton-drive-bridge ./cmd/proton-drive-bridge/...`
-   - This is a FUSE mount manager, not a server — it mounts Proton Drive at ~/ProtonDrive
-   - Needs macFUSE or similar on macOS
-   - Alternative: just use `rclone serve webdav proton:` directly (no FUSE needed)
+- `hydroxide/` — emersion/hydroxide (IMAP+SMTP+CardDAV, pure Go, MIT)
+- `proton-calendar-bridge/` — terraceonhigh fork (CalDAV, Go, MIT)
+- `proton-drive-bridge/` — terraceonhigh fork (kept for reference)
+- `proton-mail-bridge/` — terraceonhigh fork (replaced by hydroxide)
 
-### Platform notes
+### What's next
 
-- **Apple Silicon (arm64)**: All Go code compiles natively. The mail bridge
-  has C dependencies that may need Homebrew packages.
-- **Rosetta**: Available if any dependency only ships x86_64 binaries.
-- **Go version**: Install Go 1.25+ (calendar bridge requires it). Use
-  `brew install go` or goenv.
-- **rclone**: `brew install rclone` for drive support.
+- Run `go mod tidy` and verify the build compiles
+- Test Mode 1 bash script with actual services
+- Test Mode 2 TUI dashboard
+- Implement go-proton-api auth call for calendar bridge provisioning (Mode 3)
+- Build Mode 4 GUI with Wails v2 + Svelte
 
-### What NOT to do
+## Key Technical Decisions
 
-- Do not create Docker files, compose files, or container infrastructure
-- Do not build a web dashboard or multi-user system
-- Do not handle Proton authentication — the user will do this themselves
-- Do not modify the desktop/ GNOME plugin code (separate task)
-- Keep it simple — just get the binaries building
+- **Hydroxide replaces proton-mail-bridge** — pure Go, no C/C++ deps, embeddable
+- **Calendar bridge runs as child process** — all code is in `internal/`, can't import
+- **rclone runs as child process** — serve constructor is unexported
+- **Unified auth authenticates twice** — once via hydroxide's protonmail.Client
+  (legacy v3 API), once via go-proton-api (v4) for calendar bridge. Same credentials.
+- **Wails v2 for GUI** — web frontend (CSS) for pixel-perfect Proton dark theme
 
 ## Design Principles
 
 1. **Maximum Recycling**: Wrap existing tools, don't reinvent
 2. **No New Crypto**: Bridges handle all Proton encryption
 3. **Open Standards**: CalDAV, CardDAV, WebDAV, IMAP/SMTP
+4. **Progressive Enhancement**: Each mode works independently

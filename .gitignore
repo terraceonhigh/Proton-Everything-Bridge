@@ -19,6 +19,15 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# Go
+bin/
+*.exe
+proton-bridge-tui
+proton-everything-bridge
+
+# Logs
+logs/
+
 # Downloaded packages
 *.deb
 *.rpm
