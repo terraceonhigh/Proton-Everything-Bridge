@@ -1,98 +1,94 @@
 # Proton on GNOME Online Accounts
 
-Makes your **Proton Mail**, **Proton Drive**, **Proton Calendar**, and
-**Proton Contacts** work with standard apps — on any device, any OS.
+Makes **Proton Mail**, **Proton Drive**, and **Proton Calendar** work with
+standard desktop apps through open protocols.
 
-Two modes of operation:
+This repo bundles three bridge submodules and a GNOME Online Accounts plugin
+that wires them into the desktop.
 
-| Mode | What it does | Who it's for |
-|------|-------------|--------------|
-| **Server** | Docker service exposing Proton via CalDAV, CardDAV, WebDAV, IMAP/SMTP | Anyone — works with iOS, Android, Windows, macOS, Linux |
-| **Desktop** | GNOME Online Accounts plugin for direct desktop integration | GNOME desktop users |
+## Bridges
 
----
+Each bridge translates one Proton service into an open standard protocol.
 
-## Server Mode (Recommended)
+| Service | Bridge | Protocol | Default Port |
+|---------|--------|----------|-------------|
+| Mail | [proton-mail-bridge](proton-mail-bridge/) | IMAP / SMTP | 1143 / 1025 |
+| Calendar | [proton-calendar-bridge](proton-calendar-bridge/) | CalDAV | 9842 |
+| Drive | [proton-drive-bridge](proton-drive-bridge/) | WebDAV (via rclone) | — |
 
-Runs a self-hosted server that translates your Proton account into open
-standards. Works like Proton Mail Bridge — but for everything.
+### Proton Mail Bridge
 
-**Supports multiple Proton accounts** on one server. Each user gets isolated
-bridge containers and their own endpoints.
-
-### Install
-
-**Linux / macOS:**
-```bash
-bash install-server.sh
-```
-
-**Windows** (PowerShell):
-```powershell
-.\install-server.ps1
-```
-
-> **Note:** `install-server.sh` is the source of truth for installer logic.
-> The PowerShell script is a port — when changing installer behavior, update
-> the bash script first, then port changes to `.ps1`.
-
-The installer sets up Docker, configures access control (localhost, LAN, or
-internet), and starts the server. When it finishes:
-
-1. Open **https://your-domain/** in your browser
-2. Click **[+ Add Account]**
-3. Follow the bridge login instructions
-4. Copy the endpoint URLs into your apps
-
-### What you get
-
-| Service | Protocol | Endpoint |
-|---------|----------|----------|
-| Calendar | CalDAV | `https://server/users/{name}/caldav/` |
-| Contacts | CardDAV | `https://server/users/{name}/carddav/` |
-| Files | WebDAV | `https://server/users/{name}/webdav/` |
-| Mail | IMAP | `server:993` |
-| Mail | SMTP | `server:465` |
-
-### Client setup
-
-| Client | How to connect |
-|--------|---------------|
-| **iOS / macOS** | Settings → Calendar → Add Account → Other → CalDAV |
-| **Thunderbird** | New Calendar → Network → CalDAV → enter URL |
-| **DAVx5** (Android) | Base URL → enter CalDAV/CardDAV URL |
-| **Windows** | Map Network Drive → enter WebDAV URL |
-| **GNOME / Nautilus** | Other Locations → Connect to Server → `davs://...` |
-
-### Access control
-
-The server supports four access modes, configured during install:
-
-| Mode | Who can connect |
-|------|-----------------|
-| `localhost` | Only the server machine (default) |
-| `lan` | Devices on your local network |
-| `whitelist` | Specific IPs you choose |
-| `internet` | Anyone (requires a domain for TLS) |
-
-Authentication is always required regardless of access mode.
-
-### Server commands
+Official Proton tool. Provides IMAP and SMTP access to your Proton mailbox.
 
 ```bash
-bash install-server.sh --status     # Check what's running
-bash install-server.sh --uninstall  # Stop and remove everything
+# Install from https://proton.me/mail/bridge or build from submodule:
+cd proton-mail-bridge
+make build-nogui
+./bridge --cli
 
-# Logs
-docker compose -f docker-compose.caddy.yml logs -f
+# In the CLI:
+> login
+> info    # note the bridge password
+> exit
+
+# Run:
+./bridge --noninteractive
+# IMAP on :1143, SMTP on :1025
+```
+
+### Proton Calendar Bridge
+
+Exposes Proton Calendar as a CalDAV server.
+
+```bash
+cd proton-calendar-bridge
+go build -o proton-calendar-bridge ./cmd/proton-calendar-bridge/...
+
+# First run — authenticate:
+./proton-calendar-bridge --login
+
+# Then run:
+./proton-calendar-bridge
+# CalDAV on :9842
+```
+
+### Proton Drive (via rclone)
+
+rclone has a native Proton Drive backend. Mount or serve over WebDAV.
+
+```bash
+# Install rclone: https://rclone.org/install/
+
+# Configure:
+rclone config
+# → n (new), name it "proton", type "protondrive", follow prompts
+
+# FUSE mount:
+rclone mount proton: ~/ProtonDrive --vfs-cache-mode full
+
+# Or serve over WebDAV:
+rclone serve webdav proton: --addr 127.0.0.1:9844
+```
+
+### Contacts (hydroxide)
+
+[hydroxide](https://github.com/emersion/hydroxide) provides CardDAV access
+to Proton contacts. It uses an unofficial API — treat it as experimental.
+
+```bash
+go install github.com/emersion/hydroxide/cmd/hydroxide@latest
+
+hydroxide auth user@proton.me
+hydroxide carddav
+# CardDAV on :8080
 ```
 
 ---
 
-## Desktop Mode (GNOME)
+## GNOME Desktop Plugin
 
-A GOA (GNOME Online Accounts) plugin that registers Proton services directly
-with GNOME desktop apps.
+A GOA (GNOME Online Accounts) plugin that registers Proton services with
+GNOME apps (Evolution, Nautilus, GNOME Calendar).
 
 > Works on **Fedora**, **Ubuntu** (22.04+), **openSUSE**, and **Arch Linux**.
 
@@ -104,6 +100,9 @@ bash desktop/install.sh
 
 Then open **GNOME Settings → Online Accounts → Proton** to add your account.
 
+The installer will build the bridges from the submodules and install systemd
+user services to run them automatically.
+
 ### What appears
 
 | App | What you see |
@@ -112,98 +111,53 @@ Then open **GNOME Settings → Online Accounts → Proton** to add your account.
 | Files / Nautilus | Proton Drive folder |
 | GNOME Calendar | Proton Calendar events |
 
-### Desktop commands
+### Uninstall
 
 ```bash
-bash desktop/install.sh --status     # Check installed components
-bash desktop/install.sh --uninstall  # Remove everything
+bash desktop/install.sh --uninstall
+```
+
+### Building the plugin from source
+
+```bash
+sudo apt install meson ninja-build pkg-config \
+  libgoa-backend-1.0-dev libglib2.0-dev libsecret-1-dev \
+  libsoup-3.0-dev libjson-glib-dev libadwaita-1-dev
+
+cd desktop
+meson setup builddir
+ninja -C builddir
+sudo ninja -C builddir install
 ```
 
 ---
 
 ## Architecture
 
-Both modes use the same approach: **wrap existing bridges, expose standard
-protocols**.
-
 ```
-                        Your Apps
-                    (any CalDAV/IMAP client)
-                            |
-                    ┌───────┴────────┐
-                    │  Caddy / GOA   │  ← reverse proxy (server) or
-                    │  (gateway)     │    GNOME registration (desktop)
-                    └───────┬────────┘
-          ┌─────────┬───────┼────────┬──────────┐
-          │         │       │        │          │
-       CalDAV    CardDAV  WebDAV  IMAP/SMTP   │
-       proton-   hydroxide rclone  proton-    │
-       calendar  :8080    serve    mail-      │
-       -bridge            webdav   bridge     │
-       :9842              :9844    :1143/1025  │
-          │         │       │        │          │
-          └─────────┴───────┴────────┴──────────┘
-                            │
-                    Proton API (encrypted)
+            Your Apps
+        (any CalDAV/IMAP client)
+                |
+    ┌───────────┼───────────┐
+    │           │           │
+  CalDAV      IMAP/SMTP   WebDAV
+  proton-     proton-      rclone
+  calendar-   mail-        serve
+  bridge      bridge       webdav
+  :9842       :1143/1025   :9844
+    │           │           │
+    └───────────┼───────────┘
+                │
+        Proton API (encrypted)
 ```
 
-### Design principles
-
-- **Maximum Recycling**: Wrap existing tools, don't reinvent them
-- **No New Crypto**: Bridges handle all encryption and auth with Proton
-- **Open Standards**: CalDAV, CardDAV, WebDAV, IMAP/SMTP — universal client support
-
----
-
-## For Developers
-
-### Building the GNOME plugin from source
-
-```bash
-# Install dependencies (Debian/Ubuntu)
-sudo apt install meson ninja-build pkg-config \
-  libgoa-backend-1.0-dev libglib2.0-dev libsecret-1-dev \
-  libsoup-3.0-dev libjson-glib-dev libadwaita-1-dev
-
-# Build
-cd desktop
-meson setup builddir
-ninja -C builddir
-
-# Install
-sudo ninja -C builddir install
-```
-
-### Server dashboard development
-
-The server dashboard is a Go + htmx application in `dashboard/`.
-
-```bash
-cd dashboard
-go build -o dashboard .
-```
-
-### Project structure
-
-```
-docker-compose.caddy.yml         # Server: shared infrastructure (Caddy + dashboard)
-docker-compose.user.yml          # Server: per-user bridge template
-dashboard/                       # Server: Go + htmx web panel
-containers/                      # Server: bridge Dockerfiles
-Caddyfile                        # Server: reverse proxy config
-install-server.sh                # Server: guided installer
-
-desktop/                         # Desktop mode (GNOME plugin)
-├── src/goabackend/              # GOA provider C source
-├── data/                        # systemd user services
-├── packaging/                   # Distro packaging (Arch, Debian, Fedora, openSUSE)
-├── meson.build                  # Build system
-└── install.sh                   # Desktop installer
-```
+**Design principles:**
+- Wrap existing bridges, don't reinvent them
+- No new crypto — bridges handle all Proton encryption
+- Open standards — CalDAV, CardDAV, WebDAV, IMAP/SMTP
 
 ## Documentation
 
-- [Account Setup Flow](docs/account-setup-flow.md) — Detailed setup guide
 - [Project Design](PROJECT_DESIGN.md) — Architecture and design decisions
 - [Build Plan](desktop/MASTER_BUILD_PLAN.md) — GNOME plugin implementation details
 
