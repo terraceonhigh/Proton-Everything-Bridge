@@ -93,8 +93,9 @@ func (h *Handlers) Accounts(w http.ResponseWriter, r *http.Request) {
 		// Containers are running but routes failed — not fatal, will reconcile
 	}
 
-	log.Printf("account %s created", name)
-	http.Redirect(w, r, "/accounts/"+name+"/bridge", http.StatusSeeOther)
+	redirectURL := "/accounts/" + name + "/bridge"
+	log.Printf("account %s created, redirecting to %s", name, redirectURL)
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
 // AccountAction routes /accounts/{name}/{action} requests.

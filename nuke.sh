@@ -25,7 +25,8 @@ docker network rm proton-shared 2>/dev/null || true
 
 echo "=== Everything nuked. Rebuilding fresh... ==="
 docker network create proton-shared 2>/dev/null || true
-docker compose -f docker-compose.caddy.yml up -d --build
+docker compose -f docker-compose.caddy.yml build --no-cache
+docker compose -f docker-compose.caddy.yml up -d
 
 echo ""
 echo "=== Done. Server is running fresh. ==="
