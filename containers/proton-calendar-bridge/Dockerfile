@@ -7,16 +7,14 @@
 # If building from the repo root, use:
 #   docker compose build proton-calendar-bridge
 
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 RUN apk add --no-cache git
 
 WORKDIR /build
 
-# Clone or copy the calendar bridge source
-# Using the upstream repo; can be replaced with local submodule copy
-RUN git clone --depth 1 https://github.com/nicstruc/proton-calendar-bridge.git . || \
-    git clone --depth 1 https://github.com/SevenOfNine-Labs/proton-calendar-bridge.git .
+# Clone the calendar bridge source
+RUN git clone --depth 1 https://github.com/SevenOfNine-Labs/proton-calendar-bridge.git .
 
 RUN go build -o /proton-calendar-bridge ./cmd/proton-calendar-bridge/...
 
