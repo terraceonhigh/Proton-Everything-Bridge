@@ -26,12 +26,12 @@ source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/v${pkgver}.tar.gz")
 sha256sums=('SKIP')
 
 build() {
-  cd "Proton-on-Gnome-Online-Accounts-${pkgver}"
+  cd "Proton-on-Gnome-Online-Accounts-${pkgver}/desktop"
   meson setup build --prefix=/usr
   meson compile -C build
 }
 
 package() {
-  cd "Proton-on-Gnome-Online-Accounts-${pkgver}"
+  cd "Proton-on-Gnome-Online-Accounts-${pkgver}/desktop"
   meson install -C build --destdir="${pkgdir}"
 }

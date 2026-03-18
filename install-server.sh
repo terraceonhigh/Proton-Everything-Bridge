@@ -48,12 +48,24 @@ for arg in "$@"; do
   esac
 done
 
-# ── Detect distro (recycled from install.sh lines 57-75) ──────────────────
-[ -f /etc/os-release ] || die "Cannot detect your Linux distribution."
-# shellcheck source=/dev/null
-source /etc/os-release
-DISTRO_ID="${ID:-unknown}"
-DISTRO_LIKE="${ID_LIKE:-}"
+# ── Detect OS ────────────────────────────────────────────────────────────
+OS_TYPE="$(uname -s)"
+is_macos() { [[ "$OS_TYPE" == Darwin ]]; }
+is_linux() { [[ "$OS_TYPE" == Linux ]]; }
+
+DISTRO_ID="unknown"
+DISTRO_LIKE=""
+
+if is_macos; then
+  DISTRO_LABEL="macOS $(sw_vers -productVersion 2>/dev/null || echo '')"
+elif is_linux && [ -f /etc/os-release ]; then
+  # shellcheck source=/dev/null
+  source /etc/os-release
+  DISTRO_ID="${ID:-unknown}"
+  DISTRO_LIKE="${ID_LIKE:-}"
+else
+  die "Unsupported OS: $OS_TYPE. This script supports macOS and Linux."
+fi
 
 is_fedora()   { [[ "$DISTRO_ID" == fedora ]]; }
 is_ubuntu()   { [[ "$DISTRO_ID" == ubuntu || "$DISTRO_ID" == debian  \
@@ -62,7 +74,8 @@ is_opensuse() { [[ "$DISTRO_ID" == opensuse-tumbleweed || "$DISTRO_ID" == opensu
                   || "$DISTRO_ID" == suse || "$DISTRO_LIKE" == *suse* ]]; }
 is_arch()     { [[ "$DISTRO_ID" == arch || "$DISTRO_LIKE" == *arch* ]]; }
 
-if   is_fedora;   then DISTRO_LABEL="Fedora"
+if is_macos; then :  # DISTRO_LABEL already set above
+elif is_fedora;   then DISTRO_LABEL="Fedora"
 elif is_ubuntu;   then DISTRO_LABEL="Ubuntu / Debian"
 elif is_opensuse; then DISTRO_LABEL="openSUSE"
 elif is_arch;     then DISTRO_LABEL="Arch Linux"
@@ -74,7 +87,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ $STATUS_ONLY -eq 1 ]]; then
   printf "\n${BOLD}Proton DAV Server — status check${NC}\n\n"
-  printf "  Distribution : %s\n\n" "$DISTRO_LABEL"
+  printf "  Platform : %s\n\n" "$DISTRO_LABEL"
 
   _check_cmd() {
     local label="$1"; shift
@@ -163,7 +176,7 @@ ${BOLD}╔═══════════════════════�
 
   After setup, open the dashboard to add your Proton accounts.
 
-  Distribution detected: ${BOLD}${DISTRO_LABEL}${NC}
+  Platform detected: ${BOLD}${DISTRO_LABEL}${NC}
 
 "
 
@@ -172,6 +185,17 @@ step "Step 1 / 4 — Installing Docker"
 
 if command -v docker &>/dev/null && docker compose version &>/dev/null; then
   ok "Docker and Docker Compose already installed"
+elif is_macos; then
+  # macOS: Docker Desktop via Homebrew or manual install
+  if command -v brew &>/dev/null; then
+    info "Installing Docker Desktop via Homebrew..."
+    brew install --cask docker
+    ok "Docker Desktop installed"
+    warn "Please open Docker Desktop from Applications and wait for it to start."
+    read -r -p "  Press Enter once Docker Desktop is running... " </dev/tty || true
+  else
+    die "Docker not found. Install Docker Desktop from https://docker.com/products/docker-desktop or via: brew install --cask docker"
+  fi
 else
   info "Installing Docker..."
 

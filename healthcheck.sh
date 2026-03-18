@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # healthcheck.sh — Verify all Proton bridge services are responding
 #
-# Recycled from: src/goabackend/goaprotonauth.c
+# Recycled from: desktop/src/goabackend/goaprotonauth.c
 # The original C code used GSocket TCP probes to check bridge availability.
 # This script implements the same pattern in bash for Docker health checks.
 #

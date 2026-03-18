@@ -1,7 +1,7 @@
 # Proton Calendar Bridge container
 #
 # Provides CalDAV on :9842
-# Recycled from: data/proton-calendar-bridge.service
+# Recycled from: desktop/data/proton-calendar-bridge.service
 #
 # The calendar bridge is built from the proton-calendar-bridge submodule.
 # If building from the repo root, use:

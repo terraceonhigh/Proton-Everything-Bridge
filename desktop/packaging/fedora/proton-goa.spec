@@ -55,10 +55,12 @@ This will automatically configure:
 %autosetup
 
 %build
+cd desktop
 %meson
 %meson_build
 
 %install
+cd desktop
 %meson_install
 
 %post
