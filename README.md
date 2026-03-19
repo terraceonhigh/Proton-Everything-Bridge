@@ -1,5 +1,7 @@
 # Proton Everything* Birdge
 
+# Absolutely nothing works right now, check back soon
+
 Makes **Proton Mail**, **Proton Drive**, and **Proton Calendar** work with
 standard desktop apps through open protocols.
 
